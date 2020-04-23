@@ -8,6 +8,7 @@
 
   $ cp arch.example arch
   $ cp config.mk.example config.mk
+  $ git fetch
   $ make
   $ ./corona regression/0010_pt/test.nra2
 
