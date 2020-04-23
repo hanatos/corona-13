@@ -1,0 +1,206 @@
+=======================
+  CORONA-13
+=======================
+
+=======================
+  QUICKSTART:
+=======================
+
+  $ cp arch.example arch
+  $ cp config.mk.example config.mk
+  $ make
+  $ ./corona regression/0010_pt/test.nra2
+
+keyboard control:
+
+ [;.]  camera speed -/+ (dvorak)
+ [ye]  camera speed -/+ (qwertz)
+ [12]  exposure time
+ [34]  f-stop
+ [56]  focal len
+ [78]  iso value
+ [c]   save camera position
+ [l]   load camera position
+ [p]   print screenshot
+ [h]   toggle display
+ quake movement, use left mouse button to turn
+
+
+=======================
+  REQUIREMENTS:
+=======================
+
+m c dl pthread
+
+optional:
+
+GL SDL OpenVDB X11
+
+
+=======================
+  FEATURES:
+=======================
+
+ray tracing primitives:
+  - triangles, quads, cylinders/lines, spheres/points, distance field shells
+
+acceleration structures:
+  - grid
+  - qbvh + shadow cache
+  - qbvh + motion blur
+  - qbvh + motion blur + parallel build
+
+camera models:
+  - thinlens + chromatic aberration
+  - polynomial optics lens
+
+reflection models: programmable shaders with loadable modules:
+  - dielectric (rough/specular)
+  - metal (rough/specular)
+  - heterogeneous medium/openvdb
+  - homogeneous medium
+  - texture maps (diffuse, glossy, specular, emission, roughness)
+  - may be combined in any way (or: write your own)
+
+point sets used for integration:
+  - simple and fast mersenne twister (SSE)
+  - halton points
+  - kelemen metropolis sampling
+  - veach metropolis sampling:
+    - large steps/bidirectional mutation
+    - multi chain
+    - lens perturbation
+    - vertex area sampling
+    - half vector space perturbation
+    - combined hslt
+
+render modes:
+  - visibility and aov only
+  - timing (rdtsc shading)
+  - global illumination
+  - gradient domain sampling
+  - energy redistribution path tracing
+
+sampling methods:
+  - pt
+  - ptdl
+  - lt
+  - ptlt
+  - bdpt
+  - bdpt1
+  - ppm
+  - ptmnee
+
+colour management:
+  - aces
+  - ergb (smits' srgb adapted to illuminant E)
+  - rec709
+  - srgb
+  - adobergb
+  - xyz
+
+spectral upsampling:
+  - smits
+  - grid
+
+threading:
+  - pinned pthread pool
+  - affinity file with list of cores
+
+frontend:
+  - null: commandline, screenshots
+  - xorg: x11
+  - gl  : opengl backend
+  - net : mpeg stream over tcp
+
+screenshots:
+  - pfm : portable float maps
+
+tools:
+  - convert pfm2exr, pfm2hdr, exr2dng
+  - dbor firefly removal
+  - obj2geo
+  - netrender viewer
+  - turntable camera creation
+  - bsdf battle tester
+
+regression tests
+
+
+=======================
+  BUILD AND INSTALL:
+=======================
+
+corona-13 follows a compile-your-own build strategy. rather than allowing a lot
+of run-time options, most of the flexible modules are fixed at compile time.
+
+you can edit these settings in the file config.mk:
+
+ $ cp config.mk.example config.mk
+ $ cp arch.example arch
+
+and pick the modules you like best. also have a look at the file arch to suit
+your hardware.
+
+ $ make
+
+mpeg stream rendering:
+
+corona features a render server interface through corona-net, built with
+MOD_display=network. to use this, start corona as usual on the server. corona
+will block and wait for a client connection.  you can initiate one by typing
+
+ $ make corona-netrender -C tools/
+ $ tools/corona-netrender <ip-address or hostname>
+
+client side. maybe you need to tunnel it through a firewall by using ssh before
+launching corona-netrender:
+
+ $ ssh -f hostname -L 8090:hostname:8090 -N
+
+enjoy!
+
+
+=======================
+  ACKNOWLEDGEMENTS:
+=======================
+
+contributors:
+  neospark, daylight model, photon kd,
+            endless ideas (sky quad sampling, qbvh)
+            (GPLv3)
+  leo,      halton points
+  john,     pthread-pool
+
+
+=======================
+  CHANGES:
+=======================
+
+13-th generation rt
+(corona-13) : path space api, new geo backend, new threading backend, veach metropolis.
+
+(corona-14) : simulated shading/ray tracing reordering
+
+(corona-12) :
+(corona-11) :
+(corona-10)
+ `real-time rayes' : same on GPU with motion blur
+(corona-9)
+ `rayes'    : reyes style ray tracing with reordering
+(corona-8)  : procedural geo voxel octree ray tracing
+(corona-7)  : triangle mesh voxelized and ray traced
+(corona-6)
+ `radiata'  : spectral rendering!
+(corona 5)
+ `riot'     : ray i/o tracer, optimized for SIMD and FPGA
+(corona 4)
+ `mod-rt'   : c99, cp inheritance, unbiased light transport: pt, ptdl, lt
+(corona 3)
+ `int-rt'   : c99, cpp inheritance, lafortune-style bdpt, integer arith
+(corona 2)
+ `spiessert': C++ inheritance, ray packets, boring state-of-the-art:
+              bih, kd[-ondemand] (parallel)
+(corona 1)
+ `rearview' : npr, realtime, voxel based
+
