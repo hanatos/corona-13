@@ -1,0 +1,9 @@
+static const char *lens_name = "fisheye ii"; // descriptive name of the lens
+static const float lens_outer_pupil_radius = 26.000000; // scene facing radius in mm
+static const float lens_inner_pupil_radius = 11.000000; // sensor facing radius in mm
+static const float lens_length = 106.056999; // overall lens length in mm
+static const float lens_focal_length = 41.099998; // approximate lens focal length in mm (BFL)
+static const float lens_aperture_pos = 47.270996; // distance aperture -> outer pupil in mm
+static const float lens_aperture_housing_radius = 9.000000; // lens housing radius at the aperture
+static const float lens_outer_pupil_curvature_radius = 85.000000; // radius of curvature of the outer pupil
+static const float lens_field_of_view = -0.846830; // cosine of the approximate field of view assuming a 35mm image

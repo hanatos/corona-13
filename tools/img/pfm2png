@@ -1,0 +1,29 @@
+#!/bin/bash
+meta=${1%pfm}txt
+png=${1%pfm}png
+eu $1 -o /tmp/tmp.pfm > /dev/null
+convert /tmp/tmp.pfm -density 300 -quality 93 $png
+exiv2 -M"set Xmp.dc.description $(cat $meta)" $png
+
+FILMX=$(cat $meta | awk '/film *:.*mm/ {print $3}' | tr -d 'm')
+FILMY=$(cat $meta | awk '/film *:.*mm/ {print $5}' | tr -d 'm')
+RENDER=$(head -1 $meta)
+config=$(grep " iso " $meta | cut -d: -f2)
+TV=$(echo $config | cut -d" " -f1)
+AV=$(echo $config | cut -d" " -f2 | cut -d/ -f2)
+F=$(echo  $config | cut -d" " -f3)
+ISO=$(echo $config| cut -d" " -f5)
+COMMENT=$(cat $meta | grep samples | sed 's/^ *//;s/ *$//')
+SAMPLER=$(cat $meta | grep -e "^sampler" | cut -d: -f2 | sed 's/^ *//;s/ *$//')
+TIME=$(stat --printf %z $meta)
+
+exiftool -overwrite_original_in_place -Exif:FNumber="$AV" $png                      > /dev/null || exit 3
+exiftool -overwrite_original_in_place -Exif:ExposureTime="$TV" $png                 > /dev/null
+exiftool -overwrite_original_in_place -Exif:ISO="$ISO" $png                         > /dev/null
+exiftool -overwrite_original_in_place -Exif:FocalLength="$F" $png                   > /dev/null
+exiftool -overwrite_original_in_place -Exif:Model="$RENDER" $png                    > /dev/null
+exiftool -overwrite_original_in_place -Exif:FocalPlaneXResolution="$FILMX" $png     > /dev/null
+exiftool -overwrite_original_in_place -Exif:FocalPlaneYResolution="$FILMY" $png     > /dev/null
+exiftool -overwrite_original_in_place -Exif:UserComment="$COMMENT" $png             > /dev/null
+exiftool -overwrite_original_in_place -Exif:ImageDescription="$SAMPLER" $png        > /dev/null
+exiftool -overwrite_original_in_place -Exif:ModifyDate="$TIME" $png                 > /dev/null

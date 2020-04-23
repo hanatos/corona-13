@@ -1,0 +1,38 @@
+MOD_accel?=qbvhmp
+MOD_camera?=thinlens
+CAMERA_LENS?=wideangle-ii
+CFLAGS+=-DCAMERA_LENS=\"$(CAMERA_LENS)\"
+MOD_display?=xorg
+LDFLAGS+=-lX11 # for xorg display
+# LDFLAGS+=-lGL -lSDL # for gl
+# LDFLAGS+=-ljpeg # mjpeg network display
+# sfmt, xorshift128p
+MOD_points?=sfmt
+MOD_render?=gi
+MOD_filter?=blackmanharris
+MOD_sampler?=ptdl
+MOD_lights?=list
+MOD_pointsampler?=halton
+# EXTRA_SOURCES=src/pathspace/guided.c
+MUTATIONS?=
+# input can be anything: ergb (for smits), xyz, aces, srgb, rec709
+COL_input?=ergb
+# output for display only: can have gamma: adobergb, srgb, or custom profile
+COL_output?=adobergb
+# framebuffer will end up in pfm: needs to be linear: xyz, rec709
+COL_camera?=xyz
+
+include arch
+# use qwertz keyboard instead of dvorak in gui (i.e. MOD_display!=null)
+# CFLAGS+=-DGUI_QWERTZ
+# if overwriting this, be sure to `make clean':
+# CFLAGS+=-DNDEBUG
+# CFLAGS+=-DPATHSPACE_MAX_VERTS=3
+# CXXFLAGS+=-DPATHSPACE_MAX_VERTS=2
+# native hero wavelength sampling, alpha quality:
+# CFLAGS+=-DMF_COUNT=8
+
+# stupid regularisation based on path length:
+# CFLAGS+=-DSHADER_ROUGHENING
+# CFLAGS+=-DFNEE -DSEGMENT_EMISSION
+# CFLAGS+=-DLEARN_TIME=300

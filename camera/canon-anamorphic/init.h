@@ -1,0 +1,9 @@
+static const char *lens_name = "canon anamorphic"; // descriptive name of the lens
+static const float lens_outer_pupil_radius = 40.000000; // scene facing radius in mm
+static const float lens_inner_pupil_radius = 15.000000; // sensor facing radius in mm
+static const float lens_length = 201.837982; // overall lens length in mm
+static const float lens_focal_length = 30.000000; // approximate lens focal length in mm (BFL)
+static const float lens_aperture_pos = 144.337997; // distance aperture -> outer pupil in mm
+static const float lens_aperture_housing_radius = 15.000000; // lens housing radius at the aperture
+static const float lens_outer_pupil_curvature_radius = 100000.000000; // radius of curvature of the outer pupil
+static const float lens_field_of_view = 0.970826; // cosine of the approximate field of view assuming a 35mm image

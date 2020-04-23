@@ -1,0 +1,174 @@
+a:link    { font-weight:bold; font-style:normal; color:white;   text-decoration:none; }
+a:visited { font-weight:bold; font-style:normal; color:white;   text-decoration:none; }
+a:focus   { font-weight:bold; font-style:normal; color:white;   text-decoration:underline; }
+a:hover   { font-weight:bold; font-style:normal; color:#6a6868; text-decoration:none; }
+
+body{
+  background-color:#111111;
+  font-family:trebuchet ms,bitstream vera sans,verdana,helvetica,arial,sans-serif; font-size: 8pt;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+body.navbody{
+  font-family:trebuchet ms,bitstream vera sans,verdana,helvetica,arial,sans-serif; font-size: 8pt;
+  background-color:#d2d0d0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.title{
+  margin-left: auto;
+  margin-right: auto;
+  margin-top: 50pt;
+  margin-bottom: -5pt;
+  background-color:#111111;
+  color:#bbbbbb;
+  padding: 0pt;
+  font-weight:bold;
+  font-size:20pt;
+  width: 800px; /* width of page + padding. */
+}
+.page{
+  font-size:13pt;
+  overflow:hidden;
+  background-color:#444444;
+  color:#bbbbbb;
+  padding: 20pt;
+  padding-bottom: 40pt;
+  margin-left: auto;
+  margin-right: auto;
+  margin-top: 0pt;
+  margin-bottom: 0pt;
+  width: 740px;
+  counter-reset: section;
+  border-style:solid;
+  border-width:1px;
+  border-color:#666666;
+}
+.footer{
+  background-image:none;
+  background-color:#111111;
+  padding: 0pt;
+  text-align:right;
+  margin-left: auto;
+  margin-right: auto;
+  margin-top: 5pt;
+  margin-bottom: 20pt;
+  width: 740px;
+}
+
+.page .content .dia{
+  background-color:#5a5858;
+  margin-right:10pt;
+  margin-bottom:10pt;
+  margin-top:4px;
+  width:200px;
+  height:200px;
+  border-style:solid;
+  border-width:1px;
+  border-color:#222222;
+  display:table-cell;
+  vertical-align:middle;
+  text-align:center;
+}
+.page .h1 {
+float:none;
+text-align:left;
+font-size:15pt;
+color:#bbbbbb;
+text-shadow: 1px 1px 0px #000;
+font-weight:bold;
+clear:both;
+display:block;
+}
+.page .content {
+float:none;
+font-size:13pt;
+clear:both;
+display:none;
+margin-bottom:60pt;
+}
+.page .content div {
+float:left;
+display:block;
+margin-right:20pt;
+}
+/* IE/Mac \*//*/
+* html .page a {
+    display: block;
+}
+* html .page a span {
+    display: inline-block;
+    height: 100%;
+    width: 1px;
+}
+/**/
+
+
+.page .dia *{
+  max-width:200px;
+  max-height:200px;
+  border-style:none;
+  vertical-align:middle;
+}
+.diffimgpass_0{
+  background-color:#aa5555;
+}
+.diffimgpass_1{
+}
+
+.headline{
+  position:relative;
+  margin-bottom:10pt;
+  margin-left:2em;
+  color:#bbbbbb;
+  vertical-align:text-top;
+}
+h1, h2{
+  /*position:relative;*/
+  margin-bottom:5pt;
+  color:#bbbbbb;
+  margin-top:4pt;
+  font-size:15pt;
+  text-align:left;
+  /*color:#ffffff;
+  text-shadow: 1px 1px 2px #000;*/
+}
+h1.pass_0:before{
+color:#aa5555;
+content:"[fail]";
+}
+h1.pass_crash:before{
+color:#aa5555;
+content:"[crash]";
+}
+h1.pass_1:before{
+color:#55aa55;
+content:"[pass]";
+}
+
+h1:before {
+  content: counter(section) " ";
+  counter-increment: section;
+}
+h3{
+  /*position:relative;*/
+  margin-bottom:5pt;
+  color:#6a6868;
+  margin-top:4pt;
+  font-size:12pt;
+  text-align:left;
+}
+
+br{
+  margin-bottom:1em;
+  clear:both;
+}
+
+.text{
+  line-height:12pt;
+  margin-bottom:20pt;
+}

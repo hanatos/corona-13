@@ -1,0 +1,20 @@
+black
+14
+diffuse # 0
+colorcheckersg d # color d 0.3 0.3 0.3 # 1
+mult 1 1 0 # 2 plane
+color d 0 0 0 # 3
+color e 2000 2000 2000 1. # 4
+mult 2 3 4 0 # 5 light
+dielectric 1.3 23 # 6
+color g 1 1 1 0.02 # 7
+medium_rgb 0.014 0.005 0.003 0.85 # 8
+color v 0.99 0.96 0.94 # 9
+mult 1 7 6 # 10 cube material
+medium_rgb 6. 6. 6. 0.9 # 11 fog
+color v .5 .5 .5 # 12
+mult 1 12 11 # 13 outside fog
+3
+5 ../geo/mb/emitter
+2 ../geo/mb/plane
+2 ../geo/mb/cube

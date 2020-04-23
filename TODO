@@ -1,0 +1,61 @@
+cleanup:
+- guided_extend vs guided_create_path?
+- vertex area measure vs dwp
+- use throughput or not? we are evaling the bsdf..
+- don't refit vi==1 bvh but build from scratch with real bounds immediately
+- only need one lbvh for first bounce, probably no extra index array
+
+fixes:
+- knn needs to consider first bounce gaussian!
+- environment maps
+- check index matched ior
+
+bugs:
+- pdf cache invalidation on edges (don't copy paths for mlt?)
+- jacobian for vmlt->kmlt and transmit/reflect
+
+vol:
+- light sampling should work on edge->vol and vertex->interior (dedup)
+- requires some refactoring of medium interface (store flags with
+  homo/hete/emissive accessible without callback)
+- nee + culling
+- refactor interior and vol such that mu_t mu_s mu_e are on vertex.shading
+  and ior shader are on vol struct
+
+pathspace:
+- clean up propagate vs. update_throughput (propagate with mutation semantics etc
+  seems like the place to leave throughput + pdf alone)
+- remove consistency checks after all calls to path_project() with mutation
+  mode (now done inside)
+
+guiding:
+- one bvh per regex prefix (bounce, reflection mode)
+- fill distance sampling cdf from eye also in neighbour tiles
+- specular or otherwise requires to sometimes sample by bsdf instead
+  - need to keep regex prefix useful
+- when to cluster next vertices together, when to separate?
+
+hmc:
+- multi step size sampling
+- anisotropic step size sampling
+
+regression:
+- fix scenes for new geo format!
+- sparse git commit hash only for big changes (in timing plot)
+  also copy/pasteable
+
+shaders:
+- introduce multi-layer shader to test spec/glossy lobe interaction
+- wire anisotropic roughness to the microfacet models that support it
+
+pathspace:
+- on-demand pdf/pdf_adj cache system for efficiency!
+
+cleanup:
+- include optics to tools/
+
+displacements:
+- include into prims_geo
+  - depend on triangulated obj so far!
+  - init prim in alloc() callback in prims_geo.h (set extra bits, function in shell.h)
+  - 

@@ -1,0 +1,34 @@
+#!/bin/bash
+meta=${1}.txt
+jpg=${1%pfm}jpg
+tmp=$(mktemp /tmp/pfm2jpg_XXXXXX.pfm)
+# eu -p batchrc $1 -o $tmp > /dev/null
+eu $1 -o $tmp > /dev/null
+convert $tmp -flip -density 300 -quality 100 $jpg
+exiv2 -M"set Xmp.dc.description $(cat $meta)" $jpg
+rm -f $tmp
+
+FILMX=$(cat $meta | awk '/film *:.*mm/ {print $3}' | tr -d 'm')
+FILMY=$(cat $meta | awk '/film *:.*mm/ {print $5}' | tr -d 'm')
+RENDER=$(head -1 $meta)
+config=$(grep " iso " $meta | cut -d: -f2)
+TV=$(echo $config | cut -d" " -f1)
+AV=$(echo $config | cut -d" " -f2 | cut -d/ -f2)
+F=$(echo  $config | cut -d" " -f3)
+ISO=$(echo $config| cut -d" " -f5)
+COMMENT=$(cat $meta | grep samples | sed 's/^ *//;s/ *$//')
+SAMPLER=$(cat $meta | grep -e "^sampler" | cut -d: -f2 | sed 's/^ *//;s/ *$//')
+TIME=$(stat --printf %z $meta)
+
+exiftool -overwrite_original_in_place -Exif:FNumber="$AV" $jpg                      \
+                                      -Exif:ExposureTime="$TV" $jpg                 \
+                                      -Exif:ISO="$ISO" $jpg                         \
+                                      -Exif:FocalLength="$F" $jpg                   \
+                                      -Exif:Model="$RENDER" $jpg                    \
+                                      -Exif:FocalPlaneXResolution="$FILMX" $jpg     \
+                                      -Exif:FocalPlaneYResolution="$FILMY" $jpg     \
+                                      -Exif:UserComment="$COMMENT" $jpg             \
+                                      -Exif:ImageDescription="$SAMPLER" $jpg        \
+                                      -Exif:ModifyDate="$TIME" $jpg                 \
+                                        > /dev/null || exit 3
+# "-icc_profile<=/usr/share/color/icc/colord/AdobeRGB1998.icc" $jpg \

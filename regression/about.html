@@ -1,0 +1,45 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-type" content="text/html;charset=UTF-8" />
+<link rel="icon" type="image/png" href="style/corona.png" />
+<link rel="stylesheet" href="style/style.css" type="text/css" />
+<title>corona-13</title>
+</head>
+<body>
+<div class="title">corona-13</div>
+<div class="page">
+<h1>about</h1>
+<p>corona-13 is a physically-based renderer that sucks less. it's designed to be modular, minimal, and clear to read. it's written in c11, has next to no
+(c, m, dl, pthread)
+and mostly optional dependencies (SDL, GL, X11, swscale, avcodec, openvdb) and compiles in about 1.85s.</p>
+<p>the name <em>corona-#</em> is a pun on trent reznor's halo series and it's the 13th time i started to write a renderer pretty much from scratch.</p>
+<h1>features</h1>
+<p>this system is designed to be slim research code, so it most probably doesn't offer what you're looking for. features include:</p>
+<ul>
+<li>compile time config for faster turnaround times while developing</li>
+<li>clear and simple to use path space api layer</li>
+<li>spectral (no rgb transport supported)</li>
+<li>color managed (input and output color profiles, srgb and adobergb built in, custom monitor matrix+gamma from icc)</li>
+<li>interactive (X11 or GL or netrender via avconv) or batch render modes</li>
+<li>pinned pthread pool for parallel rendering</li>
+<li>ray tracing acceleration structures: qbvh, bih, grid</li>
+<li>geometry: spheres, cylinders, truncated cones, quads, all with motion blur support</li>
+<li>distance field tracing</li>
+<li>geo loaded from preconditioned file format, importer from obj available</li>
+<li>heterogeneous volume scattering (simple voxel grid and openvdb binding)</li>
+<li>both geo and volume data with out of core support</li>
+<li>random numbers: simple one liner, mersenne twister, halton points</li>
+<li>pixel filter: box, bilinear, 4x4 spline, blackman-harris</li>
+<li>path space samplers: pt, ptdl, lt, bdpt+mis, progressive photon mapping</li>
+<li>metropolis (both kelemen's and veach's variants)</li>
+<li>half vector space light transport</li>
+<li>realistic camera lens simulation</li>
+<li>output format: float xyz or linear rec709 rgb in ppm + pfm. you might want to use <a href="https://github.com/hanatos/eu">eu</a> to look at the pfm files</li>
+<li><a href="report.html">regression tests</a> for serious features</li>
+</ul>
+</div>
+<div>
+</body>
+</html>
+

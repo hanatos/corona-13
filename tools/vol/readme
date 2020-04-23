@@ -1,0 +1,93 @@
+knowledge:
+
+- 4x time samples costs roughly twice as much memory as advection/eulerian motion
+
+- we can encode non-linear motion, but need to rasterise moving object into
+  voxel grid. this step depends on the spatial voxel resolution and the speed of
+  the object. averaging density over time interval and using a low resolution
+  (4x time samples) vs using a high resolution (64x) makes a difference, but
+  non-linear motion can still be encoded at the cost of some overblur:
+  slices-mb-4.pfm
+  slices-mb-64.pfm
+
+- initial experiments (only computing transmittance) seem to indicate that
+  there is little speed difference between rendering a 2MB x4 voxel block and a
+  32MB x64 one. i expect that to go up for incoherent access/multiple scattering.
+
+- speed comparison (apples/oranges, but similar):
+  transmittance only, linear motion along y
+  eulerian no blur, constant:              5.2s
+  eulerian no blur, trilin:               31.9s
+  eulerian motion blur, constant:         11.5s
+  eulerian motion blur, trilin:          122.2s
+  pixar-style, 64x time sampling:          6.1s
+  pixar-style,  4x time sampling:          5.3s
+  pixar-style,  1x time sampling:          5.2s
+
+  (note that 1x time sampling /still/ gives you some motion blur impression,
+  even though it's blurred out/averaged over the whole shutter interval)
+
+  that's a level 2 (64^3 vox) tree and 5.2 sec are roughly 1.6Mrays/s.
+
+- how do you create input files?
+  recoding openvdb with linear motion is a gigantic pain in the ass because we need to
+  resample/advect during this step (super slow)
+
+  better approach would be directly dumping multiple simulation steps into the structure
+  (assuming the sim has smaller timesteps than we have shutter intervals during rendering)
+
+
+- compression:
+==============
+- pca compression of the whole 8x8x8x4 block needs about 200 eigenvectors to look good,
+  which is still a 10x compression (2048 vs 200 coeffs per block). unfortunately during
+  runtime 200 muladd + lut are not really a good idea.
+
+- wavelets can probably take advantage of the local similarity and be faster to evaluate
+  (8-wide block: 3 muladd to get one value)
+
+- adaptive encoding between min/max?
+
+- the new plan, with sparse wavelet coefficients:
+  compression:
+  1) do a haar wavelet transform in 4d, with 8x8x8x32 or x64 timesteps
+  2) store the coefficients in an array of (address, coeff), address can be 15
+     or 16 bit (8*8*8*64 is 2^15 and we may need some duplicate address slots
+     later on) and coeff can be 8 bit (literature says it's fine [0] and i can
+     confirm by experiments with a full wavelet transform)
+  3) sort the list by abs(coeff) and truncate according to desired compression
+     ratio/pain threshold for quality
+  4) rewrite the truncated list as (morton address, coeff), where the morton
+     code isn't really morton, but morton per level. this will accelerate readout.
+     morton per level means: all the coefficients needed on one level of wavelet
+     transform (we've got.. hm.. 3? and time will have more coarse on level 2).
+     this means that the address slots of the coarsest level (2) will be
+     duplicated on the finer levels (1 and 0) and remain empty there (not a
+     problem, we're only after a sort order).
+  5) write the truncated, morton sorted list with both (morton address, coeff)
+     to a payload chunk of a node.
+
+  readout/random access:
+  1) for each level from coarse to fine (2, 1, 0) find the 2x2x2x2 block of
+     relevant haar coefficients:
+  2) determine the morton address of the coarse coefficient.  this one should
+     go first in the list, and the other 15 will follow directly after.  we can do
+     a binary search on the (morton address, coeff) array.  worse comes to worse,
+     with x64 time sampling and a 10x compression rate (keep every 10th of the
+     32768 coefficients), this can take 11 steps.  note that we'll have to do
+     this twice, as for the coarsest level finding the block (there's only one
+     spatial block..) is very simple.
+  3) determine all 16 coefficients (do we need them all, all the time?) in the
+     2x2x2x2 block: do a linear search (max 15 steps) starting at the coarse
+     coefficients position in the array, checking the addresses at each step. if
+     the address is larger than the next coefficients address would have been, set
+     it to 0.
+
+  TODO: in the code:
+  1) test sort/discard on wavelets and see how far we can push truncation
+
+
+  [0] F. Rodler, Wavelet based 3d compression with fast random access for very large volume data.
+      In Proceedings of Pacific Conference on Computer Graphics and Applications
+      (Seoul, Korea, 1999), IEEE Computer Society Press, pp. 108-117
+

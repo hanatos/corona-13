@@ -1,0 +1,4 @@
+/* matrix c, next vertex changes */
+print("matrix c")$
+wi(t) := Y0-X0$
+wo(t) := Z(t)-Y0$

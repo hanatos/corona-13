@@ -1,0 +1,80 @@
+/* run via:
+ * maxima -q -b vhslt.max | grep -v "(%i" | sed 's/:/=/g' | sed 's/abs//g' | sed 's/block(.*],/const float /g'
+ *
+ * computes the constraint derivatives for half vector space light transport
+ * for volumes:
+ * h0, h1:
+ * outgoing direction wo normalised and in tangent frame around incoming
+ * direction, expressed as 2d constraint transformed to unbounded 2d plane via
+ * riemannian sphere.
+ * t:
+ * distance constraint, length of incoming direction wi.
+ *
+ * need to run this in 6 versions, for different combinations of tangent frame
+ * orientation and previous, current, and next vertex (a, b, c matrices).
+ */
+load("vect")$
+U:[u0,u1,u2]$
+X0:[x0,x1,x2]$
+Y0:[y0,y1,y2]$
+Z0:[z0,z1,z2]$
+X(t):=X0+t*U$
+Y(t):=Y0+t*U$
+Z(t):=Z0+t*U$
+
+batchload("mat.max")$
+
+win(t) := wi(t)/sqrt(wi(t).wi(t))$
+won(t) := wo(t)/sqrt(wo(t).wo(t))$
+
+batchload("frame.max")$
+
+du(t) := dunn(t)/sqrt(dunn(t).dunn(t))$
+dv(t) := express(win(t)~du(t))$
+
+hu(t) := won(t).du(t)$
+hv(t) := won(t).dv(t)$
+hn(t) := won(t).win(t)$
+
+/* projection to R^2 via riemannian sphere, det(J) = 1/(h2+1)^2 */
+p(h,h2) := h/(h2+1)$
+/* regular spherical parametrisation, for comparison: */
+/*p(h,h2) := h$*/
+ihg(cos_theta) := -((g^2-1) *sqrt(g^2-2*cos_theta*g+1) - g^3 + (2*cos_theta+1)*g^2 + ((-2*cos_theta) -1)*g + 1)/(2*g^2 - 4*cos_theta*g + 2);
+/* optimize(factor(%)) gives some more code-friendly result. */
+
+print("dhu_du")$
+/*diff(p(hu(t), hn(t)), t)$*/
+diff(ihg(hn(t)), t)$
+%,t=0$
+subst(wo0, z0-y0, %)$
+subst(wo1, z1-y1, %)$
+subst(wo2, z2-y2, %)$
+subst(wi0, y0-x0, %)$
+subst(wi1, y1-x1, %)$
+subst(wi2, y2-x2, %)$
+subst(lwo^2, wo0^2+wo1^2+wo2^2, %)$
+subst(lwi^2, wi0^2+wi1^2+wi2^2, %)$
+factor(%)$
+optimize(%),optimprefix:v$
+subst(ipow, "^", %)$
+sprint(string(%))$
+
+print("dhu_dv")$
+/*diff(p(hv(t),hn(t)), t)$*/
+diff(atan2(hv(t), hu(t)), t)$
+%,t=0$
+subst(wo0, z0-y0, %)$
+subst(wo1, z1-y1, %)$
+subst(wo2, z2-y2, %)$
+subst(wi0, y0-x0, %)$
+subst(wi1, y1-x1, %)$
+subst(wi2, y2-x2, %)$
+subst(lwo^2, wo0^2+wo1^2+wo2^2, %)$
+subst(lwi^2, wi0^2+wi1^2+wi2^2, %)$
+factor(%)$
+optimize(%),optimprefix:v$
+subst(ipow, "^", %)$
+sprint(string(%))$
+
+print("")$

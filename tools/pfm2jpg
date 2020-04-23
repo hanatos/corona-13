@@ -1,0 +1,4 @@
+#!/bin/bash
+eu $1 -o /tmp/tmp.pfm
+convert /tmp/tmp.pfm -quality 93 ${1%pfm}jpg
+exiv2 -M"set Xmp.dc.description $(cat ${1%pfm}txt)" ${1%pfm}jpg

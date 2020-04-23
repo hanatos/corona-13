@@ -1,0 +1,4 @@
+/* matrix a, previous vertex changes */
+print("matrix a")$
+wi(t) := Y0-X(t)$
+wo(t) := Z0-Y0$

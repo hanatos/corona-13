@@ -1,0 +1,22 @@
+black # rgbeis hdri/uffizi.hdr 10000 # cloudy
+16
+diffuse # 0
+colorcheckersg d # color d 0.3 0.3 0.3 # 1
+mult 1 1 0 # 2 plane
+color d 0 0 0 # 3
+color e 100000 100000 100000 1. # 4
+mult 2 3 4 0 # 5 light
+dielectric 1.3 23 # 6 mmetal Cu # 
+color g 1 1 1 0.01 # 7
+medium_rgb 0.1 0.1 0.1 0.1 # 8
+color v 0.8 0.8 0.8 # 9
+mult 1 7 6 # 10 cube material
+color e 1000 1000 1000 1. # 11
+mult 2 11 3 0 # 12 fill light
+mult 1 9 8 # 13 medium interior
+interior 10 13 # 14 dielectric + medium inside
+exterior -1 # 15
+3
+5 ../geo/mnee_emitter
+2 ../geo/mnee_plane
+10 ../geo/sphere

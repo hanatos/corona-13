@@ -1,0 +1,5 @@
+#!/bin/bash
+for i in pfm txt
+do
+  mv $1.$i $2.$i
+done

@@ -1,0 +1,9 @@
+static const char *lens_name = "nikon zoom"; // descriptive name of the lens
+static const float lens_outer_pupil_radius = 32.200001; // scene facing radius in mm
+static const float lens_inner_pupil_radius = 12.600000; // sensor facing radius in mm
+static const float lens_length = 177.989014; // overall lens length in mm
+static const float lens_focal_length = 40.080002; // approximate lens focal length in mm (BFL)
+static const float lens_aperture_pos = 114.838005; // distance aperture -> outer pupil in mm
+static const float lens_aperture_housing_radius = 9.400000; // lens housing radius at the aperture
+static const float lens_outer_pupil_curvature_radius = 148.570007; // radius of curvature of the outer pupil
+static const float lens_field_of_view = 0.941610; // cosine of the approximate field of view assuming a 35mm image

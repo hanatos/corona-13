@@ -1,0 +1,9 @@
+static const char *lens_name = "fisheye iii"; // descriptive name of the lens
+static const float lens_outer_pupil_radius = 165.000000; // scene facing radius in mm
+static const float lens_inner_pupil_radius = 20.000000; // sensor facing radius in mm
+static const float lens_length = 236.087021; // overall lens length in mm
+static const float lens_focal_length = 22.787001; // approximate lens focal length in mm (BFL)
+static const float lens_aperture_pos = 134.100006; // distance aperture -> outer pupil in mm
+static const float lens_aperture_housing_radius = 15.000000; // lens housing radius at the aperture
+static const float lens_outer_pupil_curvature_radius = 204.582993; // radius of curvature of the outer pupil
+static const float lens_field_of_view = -0.754456; // cosine of the approximate field of view assuming a 35mm image

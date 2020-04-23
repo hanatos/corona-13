@@ -1,0 +1,25 @@
+const 1 1 1 2000
+18
+diffuse # 0
+color d 0.3 0.3 0.3 # 1
+mult 1 1 0 # 2 default gray
+color d 0 0 0 # 3
+color e 1e5 1e5 1e5 # 4
+mult 2 3 4 0 # 5 emitter
+color v 0. 0. 0. 0.0 # 6
+medium_rgb 0.25 1e10 0.25 0.0 # 7
+medium_rgb 1e10 0.25 0.25 0.0 # 8
+color g 1 1 1 0 # 9
+dielectric 1.1 60 # 10
+dielectric 1.1 60 # 11
+mult 1 9 10 # 12 glass 1
+mult 1 9 11 # 13 glass 2
+mult 1 6 7 # 14 medium 1
+mult 1 6 8 # 15 medium 2
+interior 12 14 # 16 cube 1 (red)
+interior 13 15 # 17 cube 2 (green)
+3
+2 plane
+17 cube2
+16 cube # this second line has more priority
+5 emitter

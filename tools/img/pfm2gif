@@ -1,0 +1,17 @@
+#!/bin/bash
+
+gif=${1}.gif
+list=""
+for i in ${1}_fb??.pfm
+do
+  echo "[process] $i"
+  tmp=$(mktemp /tmp/pfm2gif_XXXXXX.pfm)
+  jpg=${i%pfm}jpg
+  eu -p batchrc $i -o $tmp > /dev/null
+  convert $tmp -flip -density 700 -quality 93 $jpg
+  rm -f $tmp
+  list="$list $jpg"
+done
+echo "[writing]" $gif
+convert $(echo $list) -loop 0 -set delay 50 $gif
+rm -f $list

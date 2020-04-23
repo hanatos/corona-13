@@ -1,0 +1,4 @@
+this tests the veach metropolis framework with a large step bidirectional
+mutation, a multi-chain perturbation treating all microfacets as specular
+interactions, and a specialized mutation strategy for glossy materials, half
+vector space mutations keeping start and end points fixed.

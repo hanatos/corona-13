@@ -1,0 +1,6 @@
+/* matrix b, this vertex changes */
+print("matrix b")$
+wi(t) := Y(t)-X0$
+wo(t) := Z0-Y(t)$
+
+

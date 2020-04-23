@@ -1,0 +1,3 @@
+/* case where the shading frame is constructed via (1,0,0) */
+print("tangent frame (1,0,0)")$
+dunn(t) := express(win(t)~[1,0,0])$

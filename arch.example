@@ -1,0 +1,6 @@
+all: corona modules
+CC=clang
+CXX=clang++
+CFLAGS+=-march=native -msse2 -mfpmath=sse -O3 -ffast-math -fno-finite-math-only -g
+CXXFLAGS+=-march=native -msse2 -mfpmath=sse -O3 -ffast-math -fno-finite-math-only -g
+LDFLAGS+=-fuse-ld=gold

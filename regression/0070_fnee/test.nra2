@@ -1,0 +1,27 @@
+black
+21
+diffuse # 0
+colorcheckersg d # color d 0.3 0.3 0.3 # 1
+mult 1 1 0 # 2 plane
+color d 0 0 0 # 3
+color e 3200 3200 3200 1. # 4
+mult 2 3 4 0 # 5 light
+dielectric 1.3 23 # 6
+color g 1 1 1 0.04 # 7
+medium_rgb 0.014 0.005 0.003 0.85 # 8
+color v 0.99 0.96 0.94 # 9
+mult 1 7 6 # 10 cube material
+color e 1000 1000 1000 1. # 11
+mult 2 11 3 0 # 12 fill light
+color d 0.3 0.3 0.3 # 13
+mult 1 13 0 # 14 default gray
+medium_hete 0.0 .2 1.0 0.5 ../geo/tiny.vol # 15
+exterior 15 1 #  16
+mmetal Ti # 17
+texture r woodfloor-roughness.ppm .4 # 18
+texture g woodfloor.ppm 3.0 # 19
+mult 2 19 18 17 # 20 wood floor
+2
+14 ../geo/plane
+15 ../geo/sphere
+5 ../geo/sidelight

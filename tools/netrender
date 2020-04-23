@@ -1,0 +1,18 @@
+#!/bin/bash
+# remote rendering host
+HOST=$1
+# stuff like -p1234 for different port for sshd
+EXTRAARG=$2
+CORONA_DIR=/home/jo/vcs/corona-13
+# pass args as one big string, will be tokenised:
+CORONA_ARGS="/data/scenes/emily/emily.nra2 -w 1024 -h 1024"
+
+
+# start remote render.
+# need to make sure that it's compiled with correct options before.
+# (could pipe config and build commands, too)
+ssh $EXTRAARG $HOST "nohup ${CORONA_DIR}/corona $(echo ${CORONA_ARGS}) > /tmp/log >&- 2>&- <&- &"
+
+# start local frontend through ssh tunnel (will self-terminate on shutdown):
+ssh $EXTRAARG -f $HOST -L 8090:$HOST:8090 sleep 5
+./corona-netrender localhost

@@ -1,0 +1,24 @@
+black # const # envmap data/sky.pfm # cloudy
+15
+diffuse # 0
+color d 0.3 0.3 0.3 # 1 colorcheckersg d #
+mult 1 1 0 # 2 plane
+color d 0 0 0 # 3
+color e 3200 3200 3200 1. # 4
+mult 2 3 4 0 # 5 light
+dielectric 1.3 30 # 6
+medium_rgb 0.014 0.005 0.003 0.0 # 0.85 # 7
+color v 0.79 0.66 0.54 # 8 color v 0.99 0.96 0.94 # 8
+color g 1 1 1 0.1 # 9
+mult 1 9 6 # 10 skin surface material
+mult 1 8 7 # 11 skin interior medium
+interior 10 11 # 12 skin surface + interior
+medium_hete 0.0 0.0 200 300 0 ../geo/smoke2.vol # 13 heterogeneous volume
+exterior 13 0 # 14
+3
+5 emitter
+2 groundplane
+13 smokeproxy
+
+13 explosionproxy
+

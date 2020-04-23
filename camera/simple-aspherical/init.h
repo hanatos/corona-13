@@ -1,0 +1,9 @@
+static const char *lens_name = "simple aspherical"; // descriptive name of the lens
+static const float lens_outer_pupil_radius = 50.000000; // scene facing radius in mm
+static const float lens_inner_pupil_radius = 50.000000; // sensor facing radius in mm
+static const float lens_length = 250.000000; // overall lens length in mm
+static const float lens_focal_length = 200.000000; // approximate lens focal length in mm (BFL)
+static const float lens_aperture_pos = 250.000000; // distance aperture -> outer pupil in mm
+static const float lens_aperture_housing_radius = 0.000000; // lens housing radius at the aperture
+static const float lens_outer_pupil_curvature_radius = 100000.000000; // radius of curvature of the outer pupil
+static const float lens_field_of_view = 0.995435; // cosine of the approximate field of view assuming a 35mm image
