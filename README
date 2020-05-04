@@ -2,6 +2,9 @@
   CORONA-13
 =======================
 
+this is a plain c testbed for global illumination research code, which has been
+used for our projects at the computer graphics group at KIT (https://cg.ivd.kit.edu).
+
 =======================
   QUICKSTART:
 =======================
