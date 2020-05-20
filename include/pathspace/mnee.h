@@ -267,7 +267,7 @@ static inline int mnee_sample(path_t *path, halfvec_stats_t *stats)
   // sample half vectors, put into this array (leave at 0 for specular constraints)
   // also need to divide out pdf for these further down in throughput computation! for non-specular materials
   // the respective jacobians are transparently switched on in halfvec_measurement().
-  float h[2*PATHSPACE_MAX_VERTS] = {0.0f};
+  float h[3*PATHSPACE_MAX_VERTS] = {0.0f};
   float roughness[PATHSPACE_MAX_VERTS] = {0.0f/0.0f};
   float cos_in[PATHSPACE_MAX_VERTS];
 
@@ -387,7 +387,7 @@ static inline double mnee_pdf(
   for(int i=v+1;i<tmp.length;i++)
     tmp.v[i].diffgeo.type = s_free;
   manifold_compute_tangents(&tmp, v, tmp.length-1);
-  float h[2*PATHSPACE_MAX_VERTS] = {0.0f};
+  float h[3*PATHSPACE_MAX_VERTS] = {0.0f};
   for(int k=v+1;k<tmp.length-1;k++)
   {
     h[2*(k-v)+0] = tmp.v[k].diffgeo.h[0];
