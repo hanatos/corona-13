@@ -292,6 +292,9 @@ void path_pop(path_t *path)
   path->v[v-1].mode &= s_emit;
   path->length--;
   path->throughput = path->v[v-1].total_throughput; // reset throughput.
+
+  // for mvnee: pop once more! vertex tech determines this:
+  if(v && path->v[v-1].tech == s_tech_mvnee) path_pop(path);
 }
 
 // return 1 if p->v[v] is visible from p->v[v-1].

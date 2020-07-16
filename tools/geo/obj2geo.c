@@ -252,7 +252,8 @@ int main (int argc, char *arg[])
   while(fscanf(f, "%[^\n]", line) != EOF)
   {
     // if(!strncmp(line, "g ", 2) || !strncmp(line, "usemtl ", 7))
-    if(!strncmp(line, "o ", 2) || !strncmp(line, "usemtl ", 7))
+    // if(!strncmp(line, "o ", 2) || !strncmp(line, "usemtl ", 7))
+    if(!strncmp(line, "o ", 2)) // newer blender uses both and fucks up the material
     // if(!strncmp(line, "usemtl ", 7))
     {
       // new file

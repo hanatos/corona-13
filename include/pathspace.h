@@ -107,7 +107,7 @@ typedef struct vertex_volume_t
   mf_t mu_s;       // volume scattering coefficient
   mf_t mu_t;       // extinction coefficient 
   float mean_cos;  // mean cosine in medium
-  mf_t ior ;       // index of refraction
+  mf_t ior;        // index of refraction
   int shader;      // volume shader or -1
 
   int num_lobes;   // number of extra lobes, if any

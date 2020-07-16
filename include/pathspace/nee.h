@@ -10,9 +10,11 @@ static inline int nee_possible(const path_t *p, const int v)
   // if there are no non-specular components, fail next event estimation.
   if(!(p->v[v].material_modes & (s_diffuse | s_glossy)))
     return 0;
+#if 0 // XXX hack to make lt connect under water
   // don't connect from inside closed shapes without enclosed light sources!
   if((p->v[v].hit.shader != rt.shader->exterior_medium_shader) &&
       primid_invalid(p->v[v].hit.prim)) return 0;
+#endif
   return 1;
 }
 

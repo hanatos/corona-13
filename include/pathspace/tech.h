@@ -12,6 +12,7 @@ typedef enum path_tech_t
   s_tech_mnee_chain = 5,  // inner vertex in specular chain of mnee
   s_tech_mnee_end   = 6,  // end vertex of specular chain of mnee
   s_tech_merged     = 7,  // sampled from both ends and merged via photon map
+  s_tech_mvnee      = 8,  // multiple vertex next event estimation
 }
 path_tech_t;
 

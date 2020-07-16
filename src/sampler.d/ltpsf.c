@@ -37,17 +37,40 @@ void sampler_create_path(path_t *path)
   while(1)
   {
     if(path_extend(path)) return;
-    if(nee_sample(path)) return;
-    const int v2 = path->length-1;
-    if(path->v[v2].throughput > 0.0f && (path->v[v2].mode & s_sensor))
-      pointsampler_splat(path, path->v[v2].throughput);
-    path_pop(path);
+
+    // only do next event estimation if the anticipated path couldn't have been constructed via mvnee:
+    // if(!mvnee_possible(path, path->length-2) || !primid_invalid(path->v[path->length-1].hit.prim))
+    { // nee reference
+#if 0
+      if(nee_sample(path)) return;
+      const int v2 = path->length-1;
+      if(path->length == 5)                   // 5-vtx paths with:
+      if(path->v[2].hit.prim.shapeid == 0)    // caustic on whale
+      if(primid_invalid(path->v[3].hit.prim)) // scattered once in the medium
+      if(path->v[v2].throughput > 0.0f && (path->v[v2].mode & s_sensor))
+        pointsampler_splat(path, path->v[v2].throughput);
+      path_pop(path);
+#endif
+    }
+#if 1
+      if(path->length == 3)                   // 3-vtx path prefix
+      if(path->v[2].hit.prim.shapeid == 0)    // forming caustic on whale
+    // if(mvnee_possible(path, path->length-1))
+    { // mvnee
+      if(mvnee_sample(path)) return;
+      const int v3 = path->length-1;
+      // if(path->v[2].hit.prim.shapeid == 0)
+      if(path->v[v3].throughput > 0.0f && (path->v[v3].mode & s_sensor))
+        pointsampler_splat(path, path->v[v3].throughput);
+      path_pop(path);
+    }
+#endif
   }
 }
 
 void sampler_print_info(FILE *fd)
 {
-  fprintf(fd, "sampler  : lighttracer\n");
+  fprintf(fd, "sampler  : psf lighttracer\n");
 }
 
 #endif

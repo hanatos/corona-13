@@ -269,7 +269,7 @@ int pointsampler_accept(path_t *curr, path_t *tent)
 
   t->accum_throughput += w_curr; // remember to accumulate once we jump out of it
 
-  if((points_rand(rt.points, tid) < a) || (t->num_rejects > 5000000 && a > 0.0))
+  if((points_rand(rt.points, tid) < a) || (t->num_rejects > 400 && a > 0.0))
   { // accept
     t->temperature = MAX(0, t->temperature-1);
     // have to accumulate now discarded state:

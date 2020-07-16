@@ -1,6 +1,7 @@
 #include "pathspace.h"
 #include "pathspace/tech.h"
 #include "pathspace/nee.h"
+#include "pathspace/mvnee.h"
 // #include "pathspace/mnee.h"
 
 mf_t path_tech_vertex_pdf_as_sampled(path_t *p, int v)
@@ -24,6 +25,8 @@ mf_t path_tech_vertex_pdf_as_sampled(path_t *p, int v)
     case s_tech_merged:
       assert(0);
       return mf_set1(0.0f/0.0f); // XXXphoton_pdf_path_merge(p, v);
+    case s_tech_mvnee:
+      return mvnee_pdf(p, v);
     default: // argh
       return mf_set1(0.0f);
   }
