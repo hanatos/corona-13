@@ -39,7 +39,7 @@ void sampler_create_path(path_t *path)
     if(path_extend(path)) return;
     if(nee_sample(path)) return;
     const int v2 = path->length-1;
-    if(path->v[v2].throughput > 0.0f && (path->v[v2].mode & s_sensor))
+    if(mf_all(mf_gt(path->v[v2].throughput, mf_set1(0.0f))) && (path->v[v2].mode & s_sensor))
       pointsampler_splat(path, path->v[v2].throughput);
     path_pop(path);
   }
