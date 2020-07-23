@@ -7,9 +7,14 @@
 
 #include <math.h>
 
-// FIXME: this is -nan at 0 and 1, though it seems it goes to a real value relatively flat!
 static inline double t_pdf(double t, double cosh)
 {
+  double theta = acosf(CLAMP(cosh, -1.0, 1.0));
+  double sth = sin(theta);
+  return sth/(theta * sqrt(1.0 - (1.0-2.0*t)*(1.0-2.0*t) * sth*sth));
+
+#if 0
+// FIXME: this is -nan at 0 and 1, though it seems it goes to a real value relatively flat!
   const double sinh = sqrt(1.0 - cosh*cosh);
   const double sinh2 = sinh*sinh;
   const double sinh3 = sinh2*sinh;
@@ -24,6 +29,7 @@ static inline double t_pdf(double t, double cosh)
                    *(2.0*sinh2*t2-2.0*sinh2*t+sinh2-1.0)
   +(4.0*sinh4-4*sinh2)*t2+(4*sinh2-4*sinh4)*t+sinh4-2*sinh2
   +1.0);
+#endif
 }
 
 static inline float t_rand(uint64_t *state)
@@ -43,6 +49,9 @@ static inline float t_rand(uint64_t *state)
 
 static inline double t_sample(double cosh, float r0)
 {
+  double theta = acosf(CLAMP(cosh, -1.0, 1.0));
+  return 0.5*(1.0 + sin(theta *(2.0*r0-1.0))/sin(theta));
+#if 0
 #if 0
   for(int k=0;k<100;k++)
   {
@@ -62,6 +71,7 @@ static inline double t_sample(double cosh, float r0)
     if(y*max < pdf) return x;
   }
   return -1;
+#endif
 }
 
 static inline int
@@ -77,34 +87,50 @@ mvnee_possible(const path_t *p, const int v)
   return 1;
 }
 
+// this returns the product vertex area measure pdf of sampling
+// both end vertices with mvnee.
 static inline mf_t
 mvnee_pdf(const path_t* p, int v)
 {
   if(p->length < 3) return mf_set1(0.0f); // no next event for 2-vertex paths.
   assert(v == 0 || v == p->length-1);
-  int v1 = v ? v-1 : v+1;  // vertex where next event was sampled from (v==0 means adjoint pdf)
-  if(!mvnee_possible(p, v1)) return mf_set1(0.0f);
+  int v0 = v ? v-2 : v+2;  // vertex where next event was sampled from (v==0 means adjoint pdf)
+  int v1 = v ? v-1 : v+1;  // middle vertex created by mvnee
+  int e0 = v ? v-1 : 2;
+  int e1 = v ? v   : 1;
+  if(!mvnee_possible(p, v0)) return mf_set1(0.0f);
 
   mf_t p_egv[3];
-  lights_pdf_type(p, v1, p_egv);
+  lights_pdf_type(p, v0, p_egv);
 
-  // XXX TODO compute pdf of path postfix until .. uhm.. first vertex on diffuse/what about godrays? currently we always add exactly 2 vertices
+  mf_t res = mf_set1(0.0f);
+  float cos_theta = dotproduct(p->e[e0].omega, p->e[e1].omega);
+  if(cos_theta <= 0.0f) return mf_set1(0.0f);
 
   // light tracer connects to camera
   if(((p->v[0].mode & s_emit)>0) ^ (v==0))
-    return view_cam_pdf_connect(p, v);
+    res = view_cam_pdf_connect(p, v);
   else if(p->v[v].flags & s_environment)
-    return mf_mul(p_egv[0], shader_sky_pdf_next_event(p, v));
+    res = mf_mul(p_egv[0], shader_sky_pdf_next_event(p, v));
   else if(primid_invalid(p->v[v].hit.prim) && (p->v[v].mode & s_emit) && mf_any(mf_gt(p->v[v].shading.em, mf_set1(0.0f))) && mf(p_egv[2], 0) > 0)
-#ifndef FNEE
-    return mf_mul(p_egv[2], light_volume_pdf_nee(p, v));
-#else
-    return mf_set1(0.0f);
-#endif
-  // XXX TODO: check whether we're in trouble because s_emit is also set on vertices which are /not/ emissive but the incoming segment is!
+    res = mf_mul(p_egv[2], light_volume_pdf_nee(p, v));
   else if(!primid_invalid(p->v[v].hit.prim) && (p->v[v].mode & s_emit) && mf(p_egv[1], 0) > 0)
-    return mf_mul(p_egv[1], lights_pdf_next_event(p, v));
-  return mf_set1(0.0f);
+    res = mf_mul(p_egv[1], lights_pdf_next_event(p, v));
+  else return mf_set1(0.0f);
+
+  // eval pdf as product of v and v1:
+  float d[3] = {
+    p->v[v].hit.x[0] - p->v[v0].hit.x[0],
+    p->v[v].hit.x[1] - p->v[v0].hit.x[1],
+    p->v[v].hit.x[2] - p->v[v0].hit.x[2]};
+  float d1[3] = {
+    p->v[v1].hit.x[0] - p->v[v0].hit.x[0],
+    p->v[v1].hit.x[1] - p->v[v0].hit.x[1],
+    p->v[v1].hit.x[2] - p->v[v0].hit.x[2]};
+  float s = sqrtf(dotproduct(d, d));
+  float t = dotproduct(d1, d) / (s * s);
+  float hg_pdf = sample_eval_hg(p->v[v1].interior.mean_cos, p->e[e0].omega, p->e[e1].omega);   // should probably eval the phase function via shader_brdf()
+  return mf_mul(res, mf_set1(2*M_PI/s * t_pdf(t, cos_theta) * hg_pdf));
 }
 
 // return on-surface pdf of vertex v if it had been sampled the other way around via
@@ -122,7 +148,7 @@ mvnee_sample(path_t *p)
 {
   assert(p->length >= 2); // at least camera and first hit.
   if(p->v[p->length-1].flags & s_environment) return 1;
-  if(p->length >= PATHSPACE_MAX_VERTS) return 1;
+  if(p->length >= PATHSPACE_MAX_VERTS-1) return 1; // need to append two new vertices
   const int v = p->length; // constructing new vertex here
 
   if(!mvnee_possible(p, v-1)) goto fail;
@@ -197,23 +223,12 @@ mvnee_sample(path_t *p)
   // sample hg with g
   float hg_pdf = 0.0f, omega[3];
   sample_hg(g, hg_r1, hg_r2, omega, &hg_pdf);
-  // XXX can't do backscattering
-  if(omega[0] < 0.0) return 0;
+  // can't do backscattering
+  if(omega[0] < 0.0) goto fail;
 
   // the cosine from phase function sampling defines the angle between e[v].w and e[v+1].w.
   const float dist_r = pointsampler(p, s_dim_nee_light1);
   const float t = t_sample(omega[0], dist_r); // sampling is normalised to [0,1]
-
-  if(t < 0) return 0; // XXX fuck, investigate! could happen for cosh = 1 or close
-
-#if 0
-  for(int k=0;k<100;k++)
-  {
-    float t = t_sample(omega[0], drand48());
-    fprintf(stderr, "%g %g\n", t, omega[0]);
-  }
-  exit(0);
-#endif
 
   // angle around axis of symmetry
   const float phi = 2.0f*M_PI*hg_r2;
@@ -222,12 +237,14 @@ mvnee_sample(path_t *p)
   const float sinh2 = 1.0-omega[0]*omega[0];
   // shit, i think this may be subject to catastrophic cancellation
   const float r = p->e[v].dist * (sqrt(1.0/(sinh2*4) - (0.5-t)*(0.5-t)) - sqrt(1.0/(sinh2*4)-1./4.));
+  const float s = p->e[v].dist;
 
 #if 0
-  fprintf(stderr, "%g %g %g\n", t, r/p->e[v].dist, omega[0]);
-  // gnuplot> set size ratio -1
-  // gnuplot> set yrange [0:1]
-  // gnuplot> plot 'dat' u 1:2:3 w p ps 3 pt 7 lc palette
+  fprintf(stdout, "%g %g %g\n", t, r/p->e[v].dist, omega[0]);
+  // gnuplot>
+  // set size ratio -1
+  // set yrange [0:0.4]
+  // plot 'dat' u 1:2:3 w p ps 3 pt 7 lc palette
 #endif
 
   // initialise edges and adjust p->v[v].hit.x accordingly.
@@ -241,20 +258,6 @@ mvnee_sample(path_t *p)
   p->v[v].hit.prim = INVALID_PRIMID;
   p->v[v].hit.shader = p->e[v].vol.shader;
 
-#if 0
-  // now we want to rotate e[v].w such that we'll intersect v[v+1].
-  // XXX then we'd need to adjust for a jacobian determinant for this operation, which changes the on-surface measure of v[v].
-
-  // XXX the following does not obey the hg angle and certainly the vertex area measure we compute is wrong
-  // attach new omega at vertex and move laterally to match NEE vertex
-  float d[3];
-  float inter = p->e[v+1].dist / omega[0]; // intersection distance along omega with plane around v[v+1]
-  for(int k=0;k<3;k++)
-    d[k] = inter * (omega[0] * p->e[v].omega[k] + omega[1] * onb_u[k] + omega[2] * onb_v[k]) + p->v[v].hit.x[k] - p->v[v+1].hit.x[k];
-  for(int k=0;k<3;k++)
-    p->v[v].hit.x[k] -= d[k]; // adjust center vertex such that the path endpoint aligns with the nee vertex
-#endif
-
   // recreate omega/dist on the edges
   for(int k=0;k<3;k++)
     p->e[v].omega[k] = p->v[v].hit.x[k] - p->v[v-1].hit.x[k];
@@ -264,8 +267,6 @@ mvnee_sample(path_t *p)
     p->e[v+1].omega[k] = p->v[v+1].hit.x[k] - p->v[v].hit.x[k];
   p->e[v+1].dist = sqrtf(dotproduct(p->e[v+1].omega, p->e[v+1].omega));
   for(int k=0;k<3;k++) p->e[v+1].omega[k] *= 1./p->e[v+1].dist;
-
-  // TODO: pdf of vertex is: sample_hg * G * G (or is it?)
 
   // test visibility of both new segments:
   if(!path_visible(p, v  )) goto fail;
@@ -279,29 +280,26 @@ mvnee_sample(path_t *p)
     goto fail;
 
   // XXX hack works for lt only: reconnect camera:
-  p->length = v+2;
+  p->length = v+2; // let cam know what's the last vertex
   if(p->v[0].mode & s_emit)
     edf = view_cam_connect(p);
-
-  // these cause fireflies. please importance sample!
-  // const float G1 = path_G(p, v);
-  // const float G2 = 1.0f;// XXX path_G(p, v+1);
+  // TODO: also reconnect to light (in case of cosine power EDF)
 
   // compute transmittance and egde contribution
   const mf_t transmittance =
     shader_vol_transmittance(p, v+1) *
     shader_vol_transmittance(p, v);
 
-  // TODO: divide out pdf properly..
+  // compute and multiply:
+  // cos0 cos2
+  // mu_s(v)    // potentially spectral
+  // 2pi s^3
+  // theta
+  const float theta = acosf(CLAMP(omega[0],-1,1));
+  float c = 2.0*M_PI/s * theta * path_lambert(p, v-1, p->e[v].omega) * path_lambert(p, v+1, p->e[v+1].omega);
   // recompute bsdf based on new direction
   bsdf = shader_brdf(p, v-1); // also set mode on vertex v-1
-  // p->v[v].throughput = mf_mul(mf_mul(mf_mul(p->v[v-1].throughput, bsdf), mf_mul(transmittance, edf)), mf_set1(G1*G2));
-  // p->v[v].throughput = mf_mul(mf_mul(mf_mul(p->v[v-1].throughput, bsdf), mf_mul(transmittance, edf)), mf_set1(G2));
-  p->v[v].throughput = mf_mul(mf_mul(p->v[v-1].throughput, bsdf), mf_mul(transmittance, edf));
-  // XXX we should compute:
-  // bsdf[v-1]  T[v] G[v] pf[v] T[v+1] G[v+1] edf[v+1]   and we claim to have sampled:
-  //            T[v]      pf[v]                          remain to eval:
-  // bsdf[v-1] G G T[v+1] edf
+  p->v[v].throughput = mf_mul(mf_mul(mf_mul(p->v[v-1].throughput, bsdf), mf_mul(transmittance, edf)), mf_mul(p->v[v].interior.mu_s, mf_set1(c)));
   p->v[v+1].throughput = p->v[v].throughput; // just set both to the same thing
 
   p->throughput = p->v[v+1].throughput; // already contains light/sensor edf
@@ -327,5 +325,22 @@ fail:
   const mf_t pdf_nee = p->v[v+1].pdf;
   p->v[v+1].total_throughput = p->v[v+1].throughput; // store for path_pop()
   p->v[v+1].pdf = pdf_nee;
+  p->v[v].pdf = mf_set1(2.0*M_PI/s*t_pdf(t, omega[0]) * hg_pdf);
+
+  // TODO: validate our estimator by evaluating throughput as full measurement / this:
+#if 0 // DEBUG
+  // parts of the measurement we care about: G1 G2 fs
+  // float fs = sample_eval_hg(p->v[v].interior.mean_cos, p->e[v].omega, p->e[v+1].omega);   // should probably eval the phase function via shader_brdf()
+  // float lam = path_lambert(p, v-1, p->e[v].omega) * path_lambert(p, v+1, p->e[v+1].omega);
+  // float measurement = path_G(p, v) * path_G(p, v+1) / lam;// * fs;
+  double measurement = 1./(p->e[v].dist*p->e[v].dist) *
+                       1./(p->e[v+1].dist*p->e[v+1].dist);
+  // fprintf(stderr, "dots %g %g\n", omega[0], dotproduct(p->e[v].omega, p->e[v+1].omega));
+  // float mvpdf = 2*M_PI/s*t_pdf(t, omega[0]);// * hg_pdf;
+  // XXX there is an s^2 here that we can't have in the estimator, mean img brightness will be way wrong!
+  double mvpdf = theta * 2.0*M_PI/(s*s*s)*t_pdf(t, omega[0]);// * hg_pdf;
+  fprintf(stderr, "ratio %g\n", measurement / mvpdf);
+#endif
+
   return 0;
 }
