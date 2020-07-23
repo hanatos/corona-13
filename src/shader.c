@@ -207,19 +207,20 @@ mf_t brdf_d(path_t *p, int v, void *data)
 {
   p->v[v].mode = s_diffuse | s_reflect;
   const float cos_out_ng = dotproduct(p->v[v].hit.gn, p->e[v+1].omega);
+  const float cos_in_ns = -dotproduct(p->v[v].hit.n, p->e[v].omega);
+  const float cos_out_ns = dotproduct(p->v[v].hit.n, p->e[v+1].omega);
   if(p->v[0].mode & s_emit)
   {
     // shading normal madness. we need two ratios since path space uses
     // the shading normal hit.n in the geometric term, not the geometric one.
-    const float cos_in_ns = -dotproduct(p->v[v].hit.n, p->e[v].omega);
-    const float cos_out_ns = dotproduct(p->v[v].hit.n, p->e[v+1].omega);
     const float cos_in_ng = dotproduct(p->v[v].hit.gn, p->e[v].omega);
     // if(cos_in_ns > 0.0f && cos_out_ns > 0.0f) // reciprocal but black borders.
     if((!(p->v[v].flags & s_inside) && (cos_out_ng > 0.0f)) || ((p->v[v].flags & s_inside) && (cos_out_ng < 0.0f)))
       return mf_mul(mf_set1(fminf(4.0f, fabsf(cos_in_ns*cos_out_ng/(cos_in_ng * cos_out_ns)))/M_PI), p->v[v].shading.rd);
   }
   // else if(cos_in_ns > 0.0f && cos_out_ns > 0.0f) // reciprocal but black borders.
-  else
+  else if(cos_out_ns > 0.0f) // ignore incoming under the surface
+  // else
   {
     if(p->v[v].flags & s_inside)
     {
