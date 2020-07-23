@@ -52,6 +52,13 @@ void sampler_create_path(path_t *path)
   while(1)
   {
     if(path_extend(path)) return;
+    if(path->length == 2 && path->v[2].mode & s_emit)
+    { // cannot be created by nee
+      float throughput = path_throughput(path);
+      if(throughput > 0.0f)
+        pointsampler_splat(path, throughput);
+    }
+
     if(path->length >= rt.sampler->max_path_len) return;
 
     if(nee_sample(path)) return;
