@@ -64,19 +64,22 @@ void sampler_create_path(path_t *path)
     // only do next event estimation if the anticipated path couldn't have been constructed via mvnee:
     // if(!mvnee_possible(path, path->length-2) || !primid_invalid(path->v[path->length-1].hit.prim))
     { // nee reference
-#if 0
+#define WHALE
+// #define REF
+#ifdef REF
       if(nee_sample(path)) return;
       const int v2 = path->length-1;
-      // whale:
+#ifdef WHALE // whale:
       if(path->length == 5)                   // 5-vtx paths with:
       if(path->v[2].hit.prim.shapeid == 0)    // caustic on whale
       if(primid_invalid(path->v[3].hit.prim)) // scattered once in the medium
       if(dotproduct(path->e[3].omega, path->e[4].omega) >= 0.0) // only account for forward scattering paths (as mvnee)
-      // sphere:
-      // if(path->length == 4)                   // 5-vtx paths with:
-      // if(path->v[1].hit.prim.shapeid == 0)    // caustic on sphere
-      // if(primid_invalid(path->v[2].hit.prim)) // scattered once in the medium
-      // if(dotproduct(path->e[2].omega, path->e[3].omega) >= 0.0) // only account for forward scattering paths (as mvnee)
+#else // sphere:
+      if(path->length == 4)                   // 4-vtx paths with:
+      if(path->v[1].hit.prim.shapeid == 0)    // highlight on one of the spheres
+      if(primid_invalid(path->v[2].hit.prim)) // scattered once in the medium
+      if(dotproduct(path->e[2].omega, path->e[3].omega) >= 0.0) // only account for forward scattering paths (as mvnee)
+#endif
       if(mf_all(mf_gt(path->v[v2].throughput, mf_set1(0.0f))) && (path->v[v2].mode & s_sensor))
       {
         mf_t w = sampler_mis(path, mf_set1(0.0f), mf_set1(0.0f));
@@ -85,11 +88,14 @@ void sampler_create_path(path_t *path)
       path_pop(path);
 #endif
     }
-#if 1
+#ifndef REF // mvnee
+#ifdef WHALE // whale
       if(path->length == 3)                   // 3-vtx path prefix (whale)
       if(path->v[2].hit.prim.shapeid == 0)    // forming caustic on whale
-      // if(path->length == 2)                   // 3-vtx path prefix (sphere)
-      // if(path->v[1].hit.prim.shapeid == 0)    // forming caustic on sphere
+#else // spheres
+      if(path->length == 2)                   // 2-vtx path prefix (sphere)
+      if(path->v[1].hit.prim.shapeid == 0)    // forming highlight on sphere
+#endif
     // if(mvnee_possible(path, path->length-1))
     { // mvnee
       if(mvnee_sample(path)) return;
@@ -102,6 +108,11 @@ void sampler_create_path(path_t *path)
       }
       path_pop(path);
     }
+#ifdef WHALE // whale
+    if(path->length == 3) return; // done everything we could
+#else // spheres
+    if(path->length == 2) return; // done everything we could
+#endif
 #endif
   }
 }

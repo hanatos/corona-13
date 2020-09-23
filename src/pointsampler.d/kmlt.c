@@ -40,8 +40,8 @@ typedef struct pointsampler_contribution_t
   float i,j;
   int path_length;
   int camid;
-  float lambda;
-  float throughput, throughput_mapped;
+  mf_t lambda;
+  mf_t throughput, throughput_mapped;
 }
 pointsampler_contribution_t;
 
@@ -49,8 +49,8 @@ typedef struct pointsampler_thr_t
 {
   int mutated_samples;
   float temperature, mean_temperature;
-  float curr_throughput, tent_throughput, accum_throughput;
-  float curr_throughput_mapped, tent_throughput_mapped;
+  mf_t curr_throughput, tent_throughput, accum_throughput;
+  mf_t curr_throughput_mapped, tent_throughput_mapped;
   int64_t num_samples, num_rejects, num_accepts, num_mutations;
   double b, b_mapped;
   int curr_num_contribs, tent_num_contribs;
@@ -103,21 +103,21 @@ pointsampler_t *pointsampler_init(uint64_t frame)
     s->t[k].tent_rand = s->t[k].rand_buf;
     s->t[k].curr_rand = s->t[k].rand_buf + POINTSAMPLER_NUM_DIMS;
     s->t[k].curr_rand[s_dim_lambda] = -0.666f;
-    s->t[k].tent_throughput = 0.0f;
-    s->t[k].accum_throughput = 0.0f;
-    s->t[k].tent_throughput_mapped = 0.0f;
+    s->t[k].tent_throughput = mf_set1(0.0f);
+    s->t[k].accum_throughput = mf_set1(0.0f);
+    s->t[k].tent_throughput_mapped = mf_set1(0.0f);
     s->t[k].temperature = 0.0f;
     s->t[k].mean_temperature = 0.0f;
-    s->t[k].curr_throughput = FLT_MIN;
-    s->t[k].curr_throughput_mapped = FLT_MIN;
+    s->t[k].curr_throughput = mf_set1(FLT_MIN);
+    s->t[k].curr_throughput_mapped = mf_set1(FLT_MIN);
     s->t[k].curr_contrib = s->t[k].contrib_buf;
     s->t[k].tent_contrib = s->t[k].contrib_buf + 2*PATHSPACE_MAX_VERTS;
     s->t[k].curr_num_contribs = 0;
     s->t[k].tent_num_contribs = 0;
     s->t[k].large_step = 0;
     s->t[k].num_samples = 0;
-    s->t[k].b = 0.0f;
-    s->t[k].b_mapped = 0.0f;
+    s->t[k].b = mf_set1(0.0f);
+    s->t[k].b_mapped = mf_set1(0.0f);
     s->t[k].num_rejects = 0;
     s->t[k].p_large_step = POINTSAMPLER_P_LARGE_STEP;
   }
@@ -269,7 +269,7 @@ int pointsampler_accept(path_t *curr, path_t *tent)
 
   t->accum_throughput += w_curr; // remember to accumulate once we jump out of it
 
-  if((points_rand(rt.points, tid) < a) || (t->num_rejects > 400 && a > 0.0))
+  if((points_rand(rt.points, tid) < a) || (t->num_rejects > 40000 && a > 0.0))
   { // accept
     t->temperature = MAX(0, t->temperature-1);
     // have to accumulate now discarded state:

@@ -233,23 +233,31 @@ static inline void sample_hg(
     float *out,     // output in local tangent space coords
     float *pdf)     // if != 0, computes and returns pdf here.
 {
+#if 0 // XXX DEBUG
   if(g == 0.0f)
   {
     sample_sphere(out, out+1, out+2, r1, r2);
     if(pdf) *pdf = 1.0f/(4.0f*M_PI);
     return;
   }
-  const float sqr = (1.0f-g*g)/(1.0f-g*(2.0f*r1-1));
+  const float sqr = (1.0f-g*g)/(1.0f+g*(2.0f*r1-1.0f));
   const float cos_theta = 1.0f/(2.0f*g) * (1.0f + g*g - sqr*sqr);
   const float phi = 2.0f*M_PI*r2;
   const float l = sqrtf(fmaxf(0.0f, 1.0f-cos_theta*cos_theta));
   out[0] = cos_theta;
   out[1] = cosf(phi)*l;
   out[2] = sinf(phi)*l;
-  normalise(out);
-  if(pdf) *pdf = 1.0f/(4.0f*M_PI) * (1.0f-g)/powf(1.0f + g*g - 2.0f*g*cos_theta, 3.0f/2.0f);
+  // normalise(out);
+  if(pdf) *pdf = 1.0f/(4.0f*M_PI) * (1.0f-g*g)/powf(1.0f + g*g - 2.0f*g*cos_theta, 3.0f/2.0f);
+#endif
+#if 1 // XXX DEBUG
+  const float k = 100.0f;
+  sample_cos_k(out+1, out+2, out, k, r1, r2);
+  if(pdf) *pdf = powf(out[0], k) * (k+1.0f)/(2.0f*M_PI);
+#endif
 }
 
+// FIXME: this does not work. r2 for the hg case yes, the other not so much
 static inline void sample_inverse_hg(
     const float g,
     const float *wo,
@@ -264,9 +272,9 @@ static inline void sample_inverse_hg(
     return;
   }
   const float cos_theta = wo[0];
-  const float phi = atan2f(wo[2], wo[1]);
-  *r2 = phi / (2.0f*M_PI);
-  *r1 = (1.0f-g*g)/(2.0f*g)*(1.0f/sqrtf(1.0f+g*g-2.0f*g*cos_theta) - 1.0f/(1.0f+g));
+  const float phi = atan2f(-wo[2], -wo[1]);
+  *r2 = (M_PI + phi) / (2.0f*M_PI);
+  *r1 = (1.0f-g*g)/(2.0f*g)*(1.0f/sqrtf(1.0f+g*g+2.0f*g*cos_theta) - 1.0f/(1.0f+g));
 }
 
 static inline float sample_eval_hg(
@@ -274,9 +282,15 @@ static inline float sample_eval_hg(
     const float *wi,
     const float *wo)
 {
+  const float k = 100.0f;
+  const float cosh = dotproduct(wi, wo);
+  if(cosh <= 0.0f) return 0.0f;
+  return powf(cosh, k) * (k+1.0f)/(2.0f*M_PI);
+#if 0 // XXX DEBUG
   if(g == 0.0f) return 1.0f/(4.0f*M_PI);
   const float cos_theta = dotproduct(wi, wo);
-  return 1.0f/(4.0f*M_PI) * (1.0f-g)/powf(1.0f + g*g - 2.0f*g*cos_theta, 3.0f/2.0f);
+  return 1.0f/(4.0f*M_PI) * (1.0f-g*g)/powf(1.0f + g*g - 2.0f*g*cos_theta, 3.0f/2.0f);
+#endif
 }
 
 

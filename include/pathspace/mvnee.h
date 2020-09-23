@@ -49,6 +49,7 @@ static inline float t_rand(uint64_t *state)
 
 static inline double t_sample(double cosh, float r0)
 {
+  if(cosh > 0.9999) return 1.0;
   double theta = acosf(CLAMP(cosh, -1.0, 1.0));
   return 0.5*(1.0 + sin(theta *(2.0*r0-1.0))/sin(theta));
 #if 0
@@ -216,19 +217,32 @@ mvnee_sample(path_t *p)
   // get volume properties:
   if(p->e[v].vol.shader == -1) goto fail; // no volume no mvnee.
   const float g = p->e[v].vol.mean_cos;
+  // fprintf(stderr, "mean cos %g\n", g);
   // sample new vertex v on edge between the two:
   p->length = v+1; // instruct pointsampler to get new dimensions
-  const float hg_r1  = pointsampler(p, s_dim_nee_x); // used for cosh
-  const float hg_r2  = pointsampler(p, s_dim_nee_y); // usef for isotropic phi
+  float hg_r1  = pointsampler(p, s_dim_nee_x); // used for cosh
+  float hg_r2  = pointsampler(p, s_dim_nee_y); // usef for isotropic phi
   // sample hg with g
   float hg_pdf = 0.0f, omega[3];
   sample_hg(g, hg_r1, hg_r2, omega, &hg_pdf);
+#if 0
   // can't do backscattering
-  if(omega[0] < 0.0) goto fail;
+  if(omega[0] < 0.0)
+  {
+    // rejection sample until we got it:
+    uint64_t state[2] = {p->index, 1337*hg_r1};
+    for(int k=0;k<100;k++)
+    {
+      hg_r1 = t_rand(state);
+      sample_hg(g, hg_r1, hg_r2, omega, &hg_pdf);
+      if(omega[0] >= 0.0f) break;
+    }
+  }
+#endif
 
   // the cosine from phase function sampling defines the angle between e[v].w and e[v+1].w.
   const float dist_r = pointsampler(p, s_dim_nee_light1);
-  const float t = t_sample(omega[0], dist_r); // sampling is normalised to [0,1]
+  const float t = dist_r; // XXX t_sample(omega[0], dist_r); // sampling is normalised to [0,1]
 
   // angle around axis of symmetry
   const float phi = 2.0f*M_PI*hg_r2;
@@ -236,8 +250,9 @@ mvnee_sample(path_t *p)
   const float cos_phi= cosf(phi);
   const float sinh2 = 1.0-omega[0]*omega[0];
   // shit, i think this may be subject to catastrophic cancellation
-  const float r = p->e[v].dist * (sqrt(1.0/(sinh2*4) - (0.5-t)*(0.5-t)) - sqrt(1.0/(sinh2*4)-1./4.));
-  const float s = p->e[v].dist;
+  // const float r = p->e[v].dist * (sqrt(1.0/(sinh2*4) - (0.5-t)*(0.5-t)) - sqrt(1.0/(sinh2*4)-1./4.));
+  const double r = sqrt(1.0/(4.0*sinh2) - (0.5-t)*(0.5-t)) - sqrt(1.0/(4.0*sinh2) - 0.25);
+  const double s = p->e[v].dist;
 
 #if 0
   fprintf(stdout, "%g %g %g\n", t, r/p->e[v].dist, omega[0]);
@@ -253,7 +268,7 @@ mvnee_sample(path_t *p)
   get_onb(p->e[v].omega, onb_u, onb_v);
   for(int k=0;k<3;k++)
     p->v[v].hit.x[k] = p->v[v-1].hit.x[k] * (1.0f-t) + p->v[v+1].hit.x[k] * t + 
-      r*(sin_phi * onb_u[k] + cos_phi * onb_v[k]);
+      s*r*(sin_phi * onb_u[k] + cos_phi * onb_v[k]);
   // also make it a point in the volume, shader_prepare will pick up the rest below
   p->v[v].hit.prim = INVALID_PRIMID;
   p->v[v].hit.shader = p->e[v].vol.shader;
@@ -281,6 +296,10 @@ mvnee_sample(path_t *p)
 
   // XXX hack works for lt only: reconnect camera:
   p->length = v+2; // let cam know what's the last vertex
+  // we sampled this already during nee. in particular, don't use any more
+  // random numbers on the last vertex (there aren't any, nee has to be
+  // performed one vertex back)
+  p->sensor.aperture_set = 1;
   if(p->v[0].mode & s_emit)
     edf = view_cam_connect(p);
   // TODO: also reconnect to light (in case of cosine power EDF)
@@ -290,16 +309,237 @@ mvnee_sample(path_t *p)
     shader_vol_transmittance(p, v+1) *
     shader_vol_transmittance(p, v);
 
+#if 1 // patented pre-cancelled jacobian
+  const double cosh = omega[0];
+  // const double theta = acos(CLAMP(cosh, -1.0, 1.0));
+  const double sinh = sqrt(MAX(0.0, 1.0-cosh*cosh));
+  // compute a few needed intermediates (spherical coordinates)
+  const double sp_r     = sqrt(fmax(0.0, s*s * (t-0.5)*(t-0.5) + s*s*r*r));
+  const double sp_theta = acos(CLAMP((t-0.5) * s / sp_r, -1.0, 1.0));
+  const double GJ       = fabs(4.0*sp_r*sin(sp_theta) / MAX(1e-7, fabs((4.0*sp_r*sp_r*cos(2.0*sp_theta) - s*s)*sinh)));
+
+  const double f = shader_brdf(p, v-1) * transmittance * edf * p->v[v].interior.mu_s *
+    path_lambert(p, v-1, p->e[v].omega) * path_lambert(p, v+1, p->e[v+1].omega);
+  const double throughput = f * GJ;
+  p->v[v].throughput = throughput * p->v[v-1].throughput;
+#endif
+
+  // compute jacobian as in unit test
+#if 0
+  const double cosh = omega[0];
+  const double theta = acos(CLAMP(cosh, -1.0, 1.0));
+  const double pdf_theta = hg_pdf * sin(theta) * 2.0*M_PI; // TODO: this disregards half hemisphere!
+
+  // XXX TODO: can't compute this case, at least not without cancelling!
+  if(theta < 1e-6) goto fail;
+
+  // const double sinh2 = 1.0 - cosh*cosh;
+  // const double sinh = sqrt(sinh2);
+  // sample t and compute r
+  // const double s = 1.0; // global scale factor. s=1 means radius of sphere = 1/2 and distance x0--x2=1.
+  // const double t = t_sample(cosh, r2);
+  // const double r = sqrt(1.0/(4.0*sinh2) - (0.5-t)*(0.5-t)) - sqrt(1.0/(4.0*sinh2) - 0.25);
+  // const double phi = 2.0 * M_PI * r1;
+  // const double x1[3] = {s*t, s*r * sin(phi), s*r * cos(phi) };
+
+
+  // compute a few needed intermediates (spherical coordinates)
+  const double sp_r     = sqrt(fmax(0.0, s*s * (t-0.5)*(t-0.5) + s*s*r*r));
+  const double sp_theta = acos(CLAMP((t-0.5) * s / sp_r, -1.0, 1.0));
+  //             sp_phi = phi; // <= this one stays, yay.
+  // assert(theta == theta);
+  // assert(sp_theta == sp_theta);
+  // assert(sp_r == sp_r);
+  // test_float(t, (sp_r / s * cos(sp_theta) + 0.5));
+  // // both equations are correct:
+  // test_float(r2, (1.0/(2.0*theta)*(theta + asin((2.0*t-1.0)*sin(theta)))));
+  // test_float(r2, (1.0/(2.0*theta)*(theta - asin((1.0-2.0*t)*sin(theta)))));
+
+  // // test side lengths/law of cosines
+  // const double d_1_sp = sqrt(sp_r*sp_r + s*s/4.0 + sp_r*s*cos(sp_theta));
+  // const double d_1_cy = sqrt(s*s*t*t + s*s*r*r);
+  // // test_float(d_1_sp, d_1_cy);
+
+  // const double d_2_sp = sqrt(sp_r*sp_r + s*s/4.0 - sp_r*s*cos(sp_theta));
+  // const double d_2_cy = sqrt(s*s*(1.0-t)*(1.0-t) + s*s*r*r);
+  // // test_float(d_2_sp, d_2_cy);
+
+#if 0
+  // compute the vertex both ways and make sure it's close enough
+  const double x1c[3] = {sp_r * cos(sp_theta) + 0.5*s, sp_r*sin(sp_theta) * sin(phi), sp_r*sin(sp_theta) * cos(phi)};
+  test_float(x1c[0], x1[0]);
+  test_float(x1c[1], x1[1]);
+  test_float(x1c[2], x1[2]);
+#endif
+  // const double delta = 1e-7;
+
+  // TODO: cancel this "den" because it blows up for theta near 0
+  // compute Jacobian from t,theta to spherical coordinates sp_r,sp_theta
+  const double den = fmax(1e-6, 16.0*pow(sp_r, 4.0) + pow(s, 4.0) - 8.0 *sp_r*sp_r *s*s * cos(2*sp_theta));
+  const double DthetaDsp_r     = 4.0*s*(4.0*sp_r*sp_r + s*s)*sin(sp_theta) / den;
+  const double DthetaDsp_theta = 4.0*sp_r*s*(s*s - 4.0*sp_r*sp_r)*cos(sp_theta) / den;
+
+  assert(den==den);
+  assert(DthetaDsp_theta == DthetaDsp_theta);
+  assert(DthetaDsp_r     == DthetaDsp_r);
+#if 0
+  // const double test_theta2 = M_PI - acos((d_1_cy*d_1_cy + d_2_cy*d_2_cy - s*s)/(2.0*d_1_cy*d_2_cy));
+  // const double test_theta3 = M_PI - acos((sp_r*sp_r - s*s/4.0)/(d_1_cy*d_2_cy));
+  const double test_theta = theta_from_sp(s, sp_r, sp_theta);
+  test_float(test_theta, theta);
+  const double DthetaDsp_r_fd     = (theta_from_sp(s, sp_r+delta, sp_theta) - theta_from_sp(s, sp_r-delta, sp_theta))/(2.0*delta);
+  const double DthetaDsp_theta_fd = (theta_from_sp(s, sp_r, sp_theta+delta) - theta_from_sp(s, sp_r, sp_theta-delta))/(2.0*delta);
+  test_float(DthetaDsp_r,     DthetaDsp_r_fd);
+  test_float(DthetaDsp_theta, DthetaDsp_theta_fd);
+#endif
+
+  // outer derivative:
+  const double DxiDt     = sin(theta) / (theta * sqrt(fmax(0.0, 1.0 - (2.0*t-1.0)*(2.0*t-1.0)*sin(theta)*sin(theta))));
+  const double DxiDtheta = 1.0/(2.0*theta*theta) * (asin(CLAMP((1.0-2.0*t)*sin(theta), -1.0, 1.0)) +
+                           (2.0*t-1.0)*theta*cos(theta)/sqrt(fmax(0.0, 1.0 - (1.0-2.0*t)*(1.0-2.0*t)*sin(theta)*sin(theta))));
+  assert(DxiDt==DxiDt);
+  assert(DxiDtheta==DxiDtheta);
+#if 0 // seems to work, good:
+  const double test_xi = xi_from_ttheta(s, t, theta);
+  test_float(test_xi, r2);
+  const double DxiDt_fd     = (xi_from_ttheta(s, t+delta, theta) - xi_from_ttheta(s, t-delta, theta))/(2.0*delta);
+  const double DxiDtheta_fd = (xi_from_ttheta(s, t, theta+delta) - xi_from_ttheta(s, t, theta-delta))/(2.0*delta);
+  test_float(DxiDt,      DxiDt_fd    );
+  test_float(DxiDtheta,  DxiDtheta_fd);
+#endif
+
+  // additional inner derivatives:
+  const double DtDsp_theta = - sp_r/s * sin(sp_theta);
+  const double DtDsp_r     =    1.0/s * cos(sp_theta);
+
+  assert(DtDsp_theta==DtDsp_theta);
+  assert(DtDsp_r==DtDsp_r);
+#if 0
+  const double test_t = t_from_sp(s, sp_r, sp_theta);
+  test_float(test_t, t);
+  const double DtDsp_r_fd     = (t_from_sp(s, sp_r+delta, sp_theta) - t_from_sp(s, sp_r-delta, sp_theta))/(2.0*delta);
+  const double DtDsp_theta_fd = (t_from_sp(s, sp_r, sp_theta+delta) - t_from_sp(s, sp_r, sp_theta-delta))/(2.0*delta);
+  test_float(DtDsp_r,     DtDsp_r_fd    );
+  test_float(DtDsp_theta, DtDsp_theta_fd);
+#endif
+
+  // finally the 2D chain rule:
+  const double DxiDsp_r     = DxiDtheta * DthetaDsp_r     + DxiDt * DtDsp_r;
+  const double DxiDsp_theta = DxiDtheta * DthetaDsp_theta + DxiDt * DtDsp_theta;
+
+  assert(DxiDsp_theta==DxiDsp_theta);
+  assert(DxiDsp_r==DxiDsp_r);
+
+#if 0 // test derivatives against finite differences:
+  const double xi = xi_from_sp(s, sp_r, sp_theta);
+  test_float(xi, r2);
+  const double DxiDsp_r_fd     = (xi_from_sp(s, sp_r + delta, sp_theta) - xi_from_sp(s, sp_r - delta, sp_theta))/(2.0*delta);
+  const double DxiDsp_theta_fd = (xi_from_sp(s, sp_r, sp_theta + delta) - xi_from_sp(s, sp_r, sp_theta - delta))/(2.0*delta);
+  test_float(DxiDsp_r,     DxiDsp_r_fd);
+  test_float(DxiDsp_theta, DxiDsp_theta_fd);
+#endif
+
+  // now the jacobian itself.
+  const double J = 1.0/fabs(DthetaDsp_r * DxiDsp_theta - DthetaDsp_theta * DxiDsp_r);
+  // const double J = 1.0/fabs(DthetaDsp_r_fd * DxiDsp_theta_fd - DthetaDsp_theta_fd * DxiDsp_r_fd);
+
+  assert(J==J);
+
+  // pdf(r2)    = 1
+  // pdf(theta) = pdf_phase_func_solid_angle * sinh *2*pi  (because we are not sampling phi with this)
+  // pdf(phi)   = 1/2pi
+  const double pdf_phi = 1.0/(2.0*M_PI);
+  const double our_pdf = pdf_phi * pdf_theta;
+
+  const double f = shader_brdf(p, v-1) * transmittance * edf * p->v[v].interior.mu_s * path_G(p, v) * path_G(p, v+1);
+  const double throughput = f / our_pdf * J * sin(sp_theta) * sp_r * sp_r;
+  p->v[v].throughput = throughput * p->v[v-1].throughput;
+#endif
+
+  // XXX can we explicitly cancel the g terms?
+#if 0
+  const float theta = acosf(CLAMP(omega[0],-1,1));
+  // c = G * G / pdf
+  const float sinh = sqrtf(sinh2);
+  const float J = theta / (2.0f * sinh2 * sinh) * (cosf((2.0*dist_r-1.0)*theta) - cosf(theta));
+  const float pdf_x1 = /* cancelled: hg_pdf */  /* p(xi==dist_r) = 1 */ sinh / J;
+  const float c = s* // vertex area pdf is actually lower if we scale up the volume
+    2.0*M_PI* // sampling phi uniformly on the circle
+    // path_lambert(p, v-1, p->e[v].omega) * path_lambert(p, v+1, p->e[v+1].omega)
+    path_G(p, v) * path_G(p, v+1)
+    / pdf_x1;
+  // recompute bsdf based on new direction
+  bsdf = shader_brdf(p, v-1); // also set mode on vertex v-1
+  // T*T*f_r * EDF * mu_s * c
+  p->v[v].throughput = mf_mul(mf_mul(mf_mul(p->v[v-1].throughput, bsdf), mf_mul(transmittance, edf)), mf_mul(p->v[v].interior.mu_s, mf_set1(c)));
+#endif
+
+#if 0
   // compute and multiply:
   // cos0 cos2
   // mu_s(v)    // potentially spectral
-  // 2pi s^3
-  // theta
+  // 2pi s^3    // i think all of these cancel ( p(phi) = 2pi and we blow up normalised vertex area measure by scaling it back)
+  // theta/sin(theta)
   const float theta = acosf(CLAMP(omega[0],-1,1));
-  float c = 2.0*M_PI/s * theta * path_lambert(p, v-1, p->e[v].omega) * path_lambert(p, v+1, p->e[v+1].omega);
+  // fudge factor in front makes it a tad too dark.
+  // at about double distance this error halves :(
+  // d = 175 => 24%
+  // d = 345 => 12%
+  // totally *not* another dependency on s though.
+  float c = // 1.0/(M_PI*s) *
+    1.0/(s*s) *
+    theta/sinf(theta) *
+    // theta *
+    path_lambert(p, v-1, p->e[v].omega) * path_lambert(p, v+1, p->e[v+1].omega);
   // recompute bsdf based on new direction
   bsdf = shader_brdf(p, v-1); // also set mode on vertex v-1
   p->v[v].throughput = mf_mul(mf_mul(mf_mul(p->v[v-1].throughput, bsdf), mf_mul(transmittance, edf)), mf_mul(p->v[v].interior.mu_s, mf_set1(c)));
+#endif
+#if 0
+  // XXX these two do not match!!
+  // XXX the above is off by a factor of two and this is just nuts:
+  // mean image brightness here seems okayish but has apparently a lot of variance.
+  // this is p(t) * p(theta) * p(phi) * sin(theta) (last term is double in t_pdf and hg_pdf, so we cancel it out)
+  // also we have to scale the pdf to match the normalisation of the scattering geometry to [0,1], so s^3
+  // or no s^3? maybe it cancels mysteriously with something.
+  const double pdf_t_theta_phi = t_pdf(t, omega[0]);// / (sin(theta));// * (double)s * (double)s * (double)s);
+  const double eval_bsdf = shader_brdf(p, v-1) *
+    shader_brdf(p, v); // this is bsdf * mu_s * phase func
+  // this is the throughput to be multiplied to p->v[v-1].throughput (whatever was incoming to the single scattering point)
+  double throughput =
+    // 1.0/(s*s)*
+
+    s*(double)s*s*(double)s *
+    1.0/((double)p->e[v].dist*(double)p->e[v].dist*(double)p->e[v+1].dist*(double)p->e[v+1].dist) * // dist term of the two G
+    // XXX CLAMP(1.0/((double)p->e[v].dist*(double)p->e[v].dist*(double)p->e[v+1].dist*(double)p->e[v+1].dist), 0, 100) * // dist term of the two G
+    // path_lambert(p, v-1, p->e[v].omega) * path_lambert(p, v+1, p->e[v+1].omega) *
+    // fabsf(dotproduct(p->v[v-1].hit.n, p->e[v].omega)) *       // cosine at single scattering
+    // fabsf(dotproduct(p->v[v+1].hit.n, p->e[v+1].omega)) *     // cosine at camera
+    // eval_bsdf *
+    // transmittance * edf *
+    // 1.0 / hg_pdf *
+    1.0 / pdf_t_theta_phi;
+  // these look good, we're mostly sampling towards the ends of the NEE segment
+  // fprintf(stderr, "dists s %g d1 %g d2 %g cos theta %g\n", s, p->e[v].dist, p->e[v+1].dist, omega[0]);
+  // fprintf(stderr, "terms are pdf %g bsdf %g G %g cos %g T %g edf %g res %g\n",
+  //     pdf_t_theta_phi, eval_bsdf, 
+  //   1.0/((double)p->e[v].dist*(double)p->e[v].dist*(double)p->e[v+1].dist*(double)p->e[v+1].dist),
+  //   fabsf(dotproduct(p->v[v-1].hit.n, p->e[v].omega)) *
+  //   fabsf(dotproduct(p->v[v+1].hit.n, p->e[v+1].omega)),
+  //   transmittance, edf, throughput);
+
+  // throughput = shader_brdf(p, v)/ hg_pdf;
+  fprintf(stderr, "throughput %g\n", throughput);
+  // mf_t throughput = mf_div(mf_mul(
+  //     mf_mul(p->v[v-1].throughput, mf_set1((float)(path_G(p, v) * path_G(p, v+1)))),
+  //     mf_mul(mf_mul(bsdf, transmittance), mf_mul(transmittance, edf))),
+  //     pdf);
+  // double thr_opt = bsdf * transmittance * edf * p->v[v].interior.mu_s * c;
+  // const double rtio = thr_opt / throughput;
+  // fprintf(stderr, "thr E %g f/p %g ratio %g s %g\n", thr_opt, throughput, rtio, s);
+  p->v[v].throughput = p->v[v-1].throughput * throughput; // XXX see what the complicated eval says
+#endif
+
   p->v[v+1].throughput = p->v[v].throughput; // just set both to the same thing
 
   p->throughput = p->v[v+1].throughput; // already contains light/sensor edf
@@ -325,7 +565,8 @@ fail:
   const mf_t pdf_nee = p->v[v+1].pdf;
   p->v[v+1].total_throughput = p->v[v+1].throughput; // store for path_pop()
   p->v[v+1].pdf = pdf_nee;
-  p->v[v].pdf = mf_set1(2.0*M_PI/s*t_pdf(t, omega[0]) * hg_pdf);
+  // XXX all wrong! (but currently unused)
+  p->v[v].pdf = mf_set1(1.0f/s*t_pdf(t, omega[0]) * hg_pdf);
 
   // TODO: validate our estimator by evaluating throughput as full measurement / this:
 #if 0 // DEBUG

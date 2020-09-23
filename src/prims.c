@@ -486,6 +486,64 @@ error:
   }
 }
 
+#if 0
+void prims_push_term(const prims_t *p, primid_t pi, const float time, hit_t *hit)
+{
+  const int vcnt = geo_get_vertex_count(p, pi);
+  if(vcnt == s_prim_tri || vcnt == s_prim_quad)
+  {
+    // tris and quads
+    float4_t v0, v1, v2, v3;
+    geo_get_vertex_time(p, pi, 0, time, &v0);
+    geo_get_vertex_time(p, pi, 1, time, &v1);
+    geo_get_vertex_time(p, pi, 2, time, &v2);
+    if(vcnt == 3)
+    {
+      (v0.f, v1.f, v2.f, pi, ray, hit);
+    }
+    else if(vcnt == 4)
+    {
+      if(hit->v >= hit->u)
+      {
+        (v0.f, v1.f, v2.f, pi, ray, hit))
+        return;
+      }
+      geo_get_vertex_time(p, pi, 3, time, &v3);
+      (v0.f, v2.f, v3.f, pi, ray, hit))
+    }
+  }
+
+  // XXX TODO: special case for smoother quads?
+
+  // now push out the vertex position to avoid self intersection!
+  float hitu[3], hitv[3], hitw[3];
+  for(int k=0;k<3;k++)
+  { // get distance vectors from triangle vertices
+    hitu[k] = hit->x[k] - v2.f[k];
+    hitv[k] = hit->x[k] - v1.f[k];
+    hitw[k] = hit->x[k] - v0.f[k];
+  }
+  // project these onto the shading normals n
+  const float dotu = fminf(0.0f, dot(hitu, n.v[2])),
+        dotv = fminf(0.0f, dot(hitv, n.v[1])),
+        dotw = fminf(0.0f, dot(hitw, n.v[0]));
+  for(int k=0;k<3;k++)
+  { // and push the distance vectors out onto the planes
+    // defined by the shading normals
+    hitu[k] -= dotu*n.v[2][k];
+    hitv[k] -= dotv*n.v[1][k];
+    hitw[k] -= dotw*n.v[0][k];
+  }
+  // the final hitpoint is the barycentric mean of these three
+  for(int k=0;k<3;k++) hit.hit[k] =
+    (1-hit.u-hit.v)*(tri.v[0][k] + hitw[k])
+      + hit.v
+      *(tri.v[1][k] + hitv[k])
+      + hit.u
+      *(tri.v[2][k] + hitu[k]);
+}
+#endif
+
 /* triangle uvs: w*v0 + v*v1 + u*v2    */
 /* intersect a quad:
  *
