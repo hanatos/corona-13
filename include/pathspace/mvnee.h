@@ -130,7 +130,7 @@ mvnee_pdf(const path_t* p, int v)
     p->v[v1].hit.x[2] - p->v[v0].hit.x[2]};
   float s = sqrtf(dotproduct(d, d));
   float t = dotproduct(d1, d) / (s * s);
-  float hg_pdf = sample_eval_hg(p->v[v1].interior.mean_cos, p->e[e0].omega, p->e[e1].omega);   // should probably eval the phase function via shader_brdf()
+  float hg_pdf = sample_eval_hg_fwd(p->v[v1].interior.mean_cos, p->e[e0].omega, p->e[e1].omega);   // should probably eval the phase function via shader_brdf()
   return mf_mul(res, mf_set1(2*M_PI/s * t_pdf(t, cos_theta) * hg_pdf));
 }
 
@@ -224,7 +224,7 @@ mvnee_sample(path_t *p)
   float hg_r2  = pointsampler(p, s_dim_nee_y); // usef for isotropic phi
   // sample hg with g
   float hg_pdf = 0.0f, omega[3];
-  sample_hg(g, hg_r1, hg_r2, omega, &hg_pdf);
+  sample_hg_fwd(g, hg_r1, hg_r2, omega, &hg_pdf);
 #if 0
   // can't do backscattering
   if(omega[0] < 0.0)
@@ -571,7 +571,7 @@ fail:
   // TODO: validate our estimator by evaluating throughput as full measurement / this:
 #if 0 // DEBUG
   // parts of the measurement we care about: G1 G2 fs
-  // float fs = sample_eval_hg(p->v[v].interior.mean_cos, p->e[v].omega, p->e[v+1].omega);   // should probably eval the phase function via shader_brdf()
+  // float fs = sample_eval_hg_fwd(p->v[v].interior.mean_cos, p->e[v].omega, p->e[v+1].omega);   // should probably eval the phase function via shader_brdf()
   // float lam = path_lambert(p, v-1, p->e[v].omega) * path_lambert(p, v+1, p->e[v+1].omega);
   // float measurement = path_G(p, v) * path_G(p, v+1) / lam;// * fs;
   double measurement = 1./(p->e[v].dist*p->e[v].dist) *

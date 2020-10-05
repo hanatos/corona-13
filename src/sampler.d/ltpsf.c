@@ -73,12 +73,12 @@ void sampler_create_path(path_t *path)
       if(path->length == 5)                   // 5-vtx paths with:
       if(path->v[2].hit.prim.shapeid == 0)    // caustic on whale
       if(primid_invalid(path->v[3].hit.prim)) // scattered once in the medium
-      if(dotproduct(path->e[3].omega, path->e[4].omega) >= 0.0) // only account for forward scattering paths (as mvnee)
+      // if(dotproduct(path->e[3].omega, path->e[4].omega) >= 0.0) // only account for forward scattering paths (as mvnee)
 #else // sphere:
       if(path->length == 4)                   // 4-vtx paths with:
       if(path->v[1].hit.prim.shapeid == 0)    // highlight on one of the spheres
       if(primid_invalid(path->v[2].hit.prim)) // scattered once in the medium
-      if(dotproduct(path->e[2].omega, path->e[3].omega) >= 0.0) // only account for forward scattering paths (as mvnee)
+      // if(dotproduct(path->e[2].omega, path->e[3].omega) >= 0.0) // only account for forward scattering paths (as mvnee)
 #endif
       if(mf_all(mf_gt(path->v[v2].throughput, mf_set1(0.0f))) && (path->v[v2].mode & s_sensor))
       {
