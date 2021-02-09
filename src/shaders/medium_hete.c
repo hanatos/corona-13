@@ -188,7 +188,7 @@ float volume_sample(path_t *p, int e, void *data)
   if(dist < p->e[e].dist)
     p->e[e].pdf = mf_mul(p->e[e].pdf, mu_t);
   // if(dist <= p->e[e].dist)
-    p->v[e].interior.mu_t = mu_t;
+  p->v[e].interior.mu_t = mu_t;
   // else
     // p->v[e].interior.mu_t = 0;
   return dist;
