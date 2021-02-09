@@ -54,8 +54,8 @@ void sampler_create_path(path_t *path)
     if(path_extend(path)) return;
     if(path->length == 2 && path->v[2].mode & s_emit)
     { // cannot be created by nee
-      float throughput = path_throughput(path);
-      if(throughput > 0.0f)
+      mf_t throughput = path_throughput(path);
+      if(mf_any(mf_gt(throughput, mf_set1(0.0f))))
         pointsampler_splat(path, throughput);
     }
 
@@ -63,16 +63,16 @@ void sampler_create_path(path_t *path)
 
     if(nee_sample(path)) return;
     const int v2 = path->length-1;
-    float throughput = path_throughput(path);
-    if(throughput > 0.0f && (path->v[v2].mode & s_emit))
+    mf_t throughput = path_throughput(path);
+    if(mf_any(mf_gt(throughput, mf_set1(0.0f))) && (path->v[v2].mode & s_emit))
       pointsampler_splat(path, throughput);
     path_pop(path);
   }
 }
 
-double sampler_mis_weight(path_t *p)
+md_t sampler_mis_weight(path_t *p)
 {
-  return 1.0;
+  return md_set1(1.0);
 }
 
 void sampler_print_info(FILE *fd)
