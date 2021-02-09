@@ -407,7 +407,82 @@ float prims_get_ray(const hit_t *hit1, const hit_t *hit2, ray_t *ray)
     if(primid_invalid(hit1->prim))
       ray->pos[k] = hit1->x[k];
     else
+    {
+#if 1
       ray->pos[k] = hit1->x[k] + eps * ray->dir[k];
+#else // patented fake surface offsets!
+      const primid_t pi = hit1->prim;
+      const prims_t *p = rt.prims;
+      const float time = ray->time;
+      const int vcnt = geo_get_vertex_count(p, pi);
+      ray->pos[k] = hit1->x[k] + eps * ray->dir[k];
+
+      if(vcnt == 3 || vcnt == 4)
+      { // only support tris and quads:
+        float4_t A, B, C;
+        float nA[3], nB[3], nC[3];
+        geo_get_vertex_time(p, pi, 0, time, &A);
+        geo_get_normal_time(p, pi, 0, time, nA);
+
+        float u, v;
+
+        if(vcnt == 3)
+        {
+          geo_get_vertex_time(p, pi, 1, time, &B);
+          geo_get_normal_time(p, pi, 1, time, nB);
+          geo_get_vertex_time(p, pi, 2, time, &C);
+          geo_get_normal_time(p, pi, 2, time, nC);
+          u = hit1->u;
+          v = hit1->v;
+        }
+        else if(vcnt == 4)
+        {
+          if(hit1->v >= hit1->u)
+          {
+            geo_get_vertex_time(p, pi, 1, time, &B);
+            geo_get_normal_time(p, pi, 1, time, nB);
+            geo_get_vertex_time(p, pi, 2, time, &C);
+            geo_get_normal_time(p, pi, 2, time, nC);
+            u = hit1->u;
+            v = hit1->v - hit1->u;
+          }
+          else
+          {
+            geo_get_vertex_time(p, pi, 2, time, &B);
+            geo_get_normal_time(p, pi, 2, time, nB);
+            geo_get_vertex_time(p, pi, 3, time, &C);
+            geo_get_normal_time(p, pi, 3, time, nC);
+            u = hit1->u - hit1->v;
+            v = hit1->v;
+          }
+        }
+        normalise(nA);
+        normalise(nB);
+        normalise(nC);
+
+        float tmpa[3], tmpb[3], tmpc[3];
+        for(int k=0;k<3;k++)
+        {
+          tmpa[k] = hit1->x[k] - A.f[k];
+          tmpb[k] = hit1->x[k] - B.f[k];
+          tmpc[k] = hit1->x[k] - C.f[k];
+        }
+        const float dota = MIN(0.0f, dotproduct(tmpa, nA));
+        const float dotb = MIN(0.0f, dotproduct(tmpb, nB));
+        const float dotc = MIN(0.0f, dotproduct(tmpc, nC));
+        for(int k=0;k<3;k++)
+        {
+          tmpa[k] -= dota * nA[k];
+          tmpb[k] -= dotb * nB[k];
+          tmpc[k] -= dotc * nC[k];
+        }
+        for(int k=0;k<3;k++)
+          ray->pos[k] = (tmpa[k] + A.f[k])*(1.0f-u-v) +
+                        (tmpb[k] + B.f[k])*v +
+                        (tmpc[k] + C.f[k])*u;
+      }
+#endif
+    }
     if(primid_invalid(hit2->prim))
       dir[k] = hit2->x[k] - ray->pos[k];
     else

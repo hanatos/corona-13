@@ -186,7 +186,8 @@ mf_t sample_d(path_t *p, void *data)
   {
     if(cos_out_ng >= 0.0f) return mf_set1(0.0f);
   }
-  else if(cos_out_ng <= 0.0f) return mf_set1(0.0f);
+  // XXX
+  // else if(cos_out_ng <= 0.0f) return mf_set1(0.0f);
 
   mf_t throughput = mf_set1(0.0f);
   if(p->v[0].mode & s_emit)
@@ -206,9 +207,11 @@ mf_t sample_d(path_t *p, void *data)
 mf_t brdf_d(path_t *p, int v, void *data)
 {
   p->v[v].mode = s_diffuse | s_reflect;
+  const float cos_out_ns = dotproduct(p->v[v].hit.n, p->e[v+1].omega);
+  if(cos_out_ns <= 0) return mf_set1(0.0f);
+  return mf_mul(p->v[v].shading.rd, mf_set1(1.0f/M_PI)); // XXX
   const float cos_out_ng = dotproduct(p->v[v].hit.gn, p->e[v+1].omega);
   const float cos_in_ns = -dotproduct(p->v[v].hit.n, p->e[v].omega);
-  const float cos_out_ns = dotproduct(p->v[v].hit.n, p->e[v+1].omega);
   if(p->v[0].mode & s_emit)
   {
     // shading normal madness. we need two ratios since path space uses
