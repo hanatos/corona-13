@@ -408,7 +408,7 @@ float prims_get_ray(const hit_t *hit1, const hit_t *hit2, ray_t *ray)
       ray->pos[k] = hit1->x[k];
     else
     {
-#if 1
+#if 0
       ray->pos[k] = hit1->x[k] + eps * ray->dir[k];
 #else // patented fake surface offsets!
       const primid_t pi = hit1->prim;

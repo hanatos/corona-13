@@ -179,7 +179,7 @@ clean: modules_clean
 	rm -f build/*
 	make -C ext/pthread-pool clean
 
-SHADERS=color mult interior texture medium_rgb medium_poe dielectric diffdiel colorcheckersg metal medium_hete vdata medium_aggregate
+SHADERS=color mult interior texture medium_rgb medium_poe dielectric diffdiel colorcheckersg metal medium_hete vdata medium_aggregate bump
 ifneq (,$(findstring MF_COUNT,$(CFLAGS)))
   # hero wavelength, need to disable a few non-ported bsdf :(
 else
