@@ -54,7 +54,7 @@ float pointsampler(path_t *p, int dim)
   return points_rand(rt.points, tid);
 }
 
-void pointsampler_splat(path_t *p, float value)
+void pointsampler_splat(path_t *p, mf_t value)
 {
   render_splat(p, value);
 }
