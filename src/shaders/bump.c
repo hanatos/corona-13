@@ -138,7 +138,15 @@ void cleanup(void *data)
 
 float prepare(path_t *p, int v, void *data)
 {
-#if 1
+#if 0 // hack: conspire with brdf evaluation later, and store intermediates with vertex normals:
+  memcpy(p->v[v].diffgeo.dpdu, p->v[v].hit.n, sizeof(float)*3);
+#endif
+
+  // use geo normal!
+  for(int k=0;k<3;k++)
+    p->v[v].hit.n[k] = p->v[v].hit.gn[k];
+
+#if 0
   // overwrite p->v[v].hit.n by bump map!
   // use simple perlin noise
   // use dpdu/dpdv as frame
@@ -161,6 +169,21 @@ float prepare(path_t *p, int v, void *data)
   for(int k=0;k<3;k++)
     p->v[v].hit.n[k] += 0.06 * (dpdu[k] * du + dpdv[k] * dv);
   normalise(p->v[v].hit.n);
+#endif
+
+#if 0 // conty's bump terminator fix doesn't work here because omega -> light not yet known.
+  // Return alpha ^2 parameter from normal divergence
+// float bump_alpha2 ( float3 N , float3 Nbump ) {
+float cos_d = fminf(fabsf(dotproduct(p->v[v].hit.gn , p->v[v].hit.n)), 1.0f);
+float tan2_d = (1 - cos_d * cos_d ) / ( cos_d * cos_d );
+float alpha2 = fminf(fmaxf(0.125f * tan2_d, 0.0f), 1.0f);
+// }
+// Shadowing factor
+// float b u m p _ s h a d o w i n g _ f u n c t i o n ( float3 N , float3 Ld , float alpha2 ) {
+float cos_i = fmaxf(fabsf(dotproduct(p->v[v].hit.gn, p->e[v].omega)) , 1e-6f);
+float tan2_i = (1 - cos_i * cos_i ) / ( cos_i * cos_i ) ;
+p->v[v].shading.rd *= 2.0f / (1 + sqrtf (1 + alpha2 * tan2_i ) ) ;
+// }
 #endif
 
   return 1.0f;

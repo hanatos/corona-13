@@ -209,6 +209,23 @@ mf_t brdf_d(path_t *p, int v, void *data)
   p->v[v].mode = s_diffuse | s_reflect;
   const float cos_out_ns = dotproduct(p->v[v].hit.n, p->e[v+1].omega);
   if(cos_out_ns <= 0) return mf_set1(0.0f);
+#if 0 // conty's bump terminator fix
+  // Return alpha ^2 parameter from normal divergence
+// float bump_alpha2 ( float3 N , float3 Nbump ) {
+float cos_d = fminf(fabsf(dotproduct(p->v[v].hit.gn , p->v[v].hit.n)), 1.0f);
+float tan2_d = (1 - cos_d * cos_d ) / ( cos_d * cos_d );
+// float alpha2 = fminf(fmaxf(0.125f * tan2_d, 0.0f), 1.0f);
+float alpha2 = fminf(fmaxf(0.125f * tan2_d, 0.0f), 100.0f);
+// }
+// Shadowing factor
+//float bump_shadowing_function(float3 N,float3 Ld,float alpha2){
+// float cos_i = fmaxf(fabsf(dotproduct(p->v[v].hit.gn, p->e[v+1].omega)) , 1e-6f);
+// hack: stored the normal pre-bump here in bump->prepare()
+float cos_i = fmaxf((dotproduct(p->v[v].diffgeo.dpdu, p->e[v+1].omega)) , 1e-6f);
+float tan2_i = (1 - cos_i * cos_i ) / ( cos_i * cos_i ) ;
+float att = 2.0f / (1 + sqrtf (1 + alpha2 * tan2_i ) ) ;
+  return mf_mul(p->v[v].shading.rd, mf_set1(att/M_PI)); // XXX
+#endif
   return mf_mul(p->v[v].shading.rd, mf_set1(1.0f/M_PI)); // XXX
   const float cos_out_ng = dotproduct(p->v[v].hit.gn, p->e[v+1].omega);
   const float cos_in_ns = -dotproduct(p->v[v].hit.n, p->e[v].omega);
