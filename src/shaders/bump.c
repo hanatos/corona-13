@@ -142,17 +142,19 @@ float prepare(path_t *p, int v, void *data)
   memcpy(p->v[v].diffgeo.dpdu, p->v[v].hit.n, sizeof(float)*3);
 #endif
 
+#if 0
   // use geo normal!
   for(int k=0;k<3;k++)
     p->v[v].hit.n[k] = p->v[v].hit.gn[k];
+#endif
 
-#if 0
+#if 1
   // overwrite p->v[v].hit.n by bump map!
   // use simple perlin noise
   // use dpdu/dpdv as frame
   // use hit.{s,t} as texture coordinates
-  float s = 50.0*(p->v[v].hit.x[2]-p->v[v].hit.x[0]); // .s;
-  float t = 50.0*(p->v[v].hit.x[1]-p->v[v].hit.x[2]); // .t;
+  float s = 13.0*(p->v[v].hit.x[2]-p->v[v].hit.x[0]); // .s;
+  float t = 13.0*(p->v[v].hit.x[1]-p->v[v].hit.x[2]); // .t;
   float du = PerlinNoise2D(s, t);
   float dv = PerlinNoise2D(t, s);
 
@@ -171,7 +173,7 @@ float prepare(path_t *p, int v, void *data)
   normalise(p->v[v].hit.n);
 #endif
 
-#if 0 // conty's bump terminator fix doesn't work here because omega -> light not yet known.
+#if 1 // conty's bump terminator fix doesn't work here because omega -> light not yet known.
   // Return alpha ^2 parameter from normal divergence
 // float bump_alpha2 ( float3 N , float3 Nbump ) {
 float cos_d = fminf(fabsf(dotproduct(p->v[v].hit.gn , p->v[v].hit.n)), 1.0f);
