@@ -264,11 +264,11 @@ mvnee_sample(path_t *p)
   const double sp_theta = acos(CLAMP((t-0.5) * s / sp_r, -1.0, 1.0));
   const double GJ       = fabs(4.0*sp_r*sin(sp_theta) / MAX(1e-11, fabs((4.0*sp_r*sp_r*cos(2.0*sp_theta) - s*s)*sinh)));
 
-  const double f = bsdf * transmittance * edf * p->v[v].interior.mu_s *
-    path_lambert(p, v-1, p->e[v].omega) * path_lambert(p, v+1, p->e[v+1].omega);
+  const md_t f = md_mul(md_mul(md_mul(mf_2d(bsdf), mf_2d(transmittance)), md_mul(mf_2d(edf), mf_2d(p->v[v].interior.mu_s))),
+    md_set1(path_lambert(p, v-1, p->e[v].omega)*path_lambert(p, v+1, p->e[v+1].omega)));
   // const double throughput = 1e-10;// XXXf * GJ;
-  const double throughput = f * GJ;
-  p->v[v].throughput = throughput * p->v[v-1].throughput;
+  const md_t throughput = md_mul(f, md_set1(GJ));
+  p->v[v].throughput = md_2f(md_mul(throughput, mf_2d(p->v[v-1].throughput)));
 
   p->v[v+1].throughput = p->v[v].throughput; // just set both to the same thing
   p->throughput = p->v[v+1].throughput; // already contains light/sensor edf

@@ -51,12 +51,12 @@ sampler_mis(
   md_t our   = md_mul(md_mul(mf_2d(p->v[ve-1].pdf), mf_2d(p->v[ve].pdf)), pdf_path);
   md_t other;
   if(tech == 1) // we are nee, the other is mvnee
-    other = mvnee_pdf(p, ve);
+    other = mf_2d(mvnee_pdf(p, ve));
   else if(tech == 2) // we are mvnee, the other is nee
     other = md_mul(mf_2d(p->v[ve-1].pdf), mf_2d(nee_pdf(p, ve)));
   else return mf_set1(0.0f);
   // multiply to rest of path:
-  other = md_mul(pdf_path, mf_2d(other));
+  other = md_mul(pdf_path, other);
 
   // evaluate combined balance heuristic for wavelength and path construction:
   return mf_div(md_2f(our), mf_set1(mf_hsum(md_2f(md_add(other, our)))));
