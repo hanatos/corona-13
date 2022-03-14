@@ -21,9 +21,14 @@
 #include "pathspace.h"
 #include "pathspace/nee.h"
 #include "pathspace/mvnee.h"
+#include "pathspace/equiangular.h"
 #include "pointsampler.h"
 
 // std forward pathtracer (light tracer)
+
+// DEBUG: compare against equiangular like this
+#define wprefix(name) equiangular_ ## name
+// #define wprefix(name) mvnee_ ## name
 
 typedef struct sampler_t {} sampler_t;
 sampler_t *sampler_init() {return NULL;}
@@ -37,22 +42,18 @@ sampler_mis(
     const path_t *p,
     const int     tech) // 0 - this path fwd scattering, 1 - nee, 2 - mvnee
 {
-  // return 1.0; // XXX
-  // md_t pdf_path = md_set1(1.0);
-  // for(int v=1;v<p->length;v++)
-  //   pdf_path = md_mul(pdf_path, mf_2d(p->v[v].pdf));
-  // return mf_div(md_2f(pdf_path), mf_set1(mf_hsum(md_2f(pdf_path))));
-
+  // compute product of vertex area pdfs along the path excluding the last two vertices ve and ve-1:
   const int ve = p->length - 1;
   md_t pdf_path = md_set1(1.0);
-  for(int v=1;v<ve-1;v++)
+  for(int v=1;v<ve-1;v++) // the first two vertices 0,1 are created in a single path_extend call and have only 1 pdf
     pdf_path = md_mul(pdf_path, mf_2d(p->v[v].pdf));
 
-  md_t our   = md_mul(md_mul(mf_2d(p->v[ve-1].pdf), mf_2d(p->v[ve].pdf)), pdf_path);
+  // our path has the following two vertex area pdfs at [ve-1] and [ve]:
+  md_t our = md_mul(md_mul(mf_2d(p->v[ve-1].pdf), mf_2d(p->v[ve].pdf)), pdf_path);
   md_t other;
-  if(tech == 1) // we are nee, the other is mvnee
-    other = mf_2d(mvnee_pdf(p, ve));
-  else if(tech == 2) // we are mvnee, the other is nee
+  if(tech == 1)                         // we are nee, the other is mvnee
+    other = mf_2d(wprefix(pdf)(p, ve)); // this returns the product of the last two vertices
+  else if(tech == 2)                    // we are mvnee, the other is nee
     other = md_mul(mf_2d(p->v[ve-1].pdf), mf_2d(nee_pdf(p, ve)));
   else return mf_set1(0.0f);
   // multiply to rest of path:
@@ -88,7 +89,7 @@ void sampler_create_path(path_t *path)
 //       if(primid_invalid(path->v[2].hit.prim)) // scattered once in the medium
 //       // if(dotproduct(path->e[2].omega, path->e[3].omega) >= 0.0) // only account for forward scattering paths (as mvnee)
 // #endif
-      if(mf_all(mf_gt(path->v[v2].throughput, mf_set1(0.0f))) && (path->v[v2].mode & s_sensor))
+      if(mf_any(mf_gt(path->v[v2].throughput, mf_set1(0.0f))) && (path->v[v2].mode & s_sensor))
       {
         mf_t w = sampler_mis(path, 1);
         pointsampler_splat(path, mf_mul(w, path->v[v2].throughput));
@@ -104,12 +105,12 @@ void sampler_create_path(path_t *path)
 //       if(path->length == 2)                   // 2-vtx path prefix (sphere)
 //       // if(path->v[1].hit.prim.shapeid == 0)    // forming highlight on sphere
 // #endif
-    if(mvnee_possible(path, path->length-1))
+    if(wprefix(possible)(path, path->length-1))
     { // mvnee
-      if(mvnee_sample(path)) return;
+      if(wprefix(sample)(path)) return;
       const int v3 = path->length-1;
       // if(path->v[2].hit.prim.shapeid == 0)
-      if(mf_all(mf_gt(path->v[v3].throughput, mf_set1(0.0f))) && (path->v[v3].mode & s_sensor))
+      if(mf_any(mf_gt(path->v[v3].throughput, mf_set1(0.0f))) && (path->v[v3].mode & s_sensor))
       {
         mf_t w = sampler_mis(path, 2);
         pointsampler_splat(path, mf_mul(path->v[v3].throughput, w));

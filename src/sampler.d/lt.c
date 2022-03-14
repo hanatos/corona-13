@@ -31,6 +31,18 @@ void sampler_cleanup(sampler_t *s) {}
 void sampler_prepare_frame(sampler_t *s) {}
 void sampler_clear(sampler_t *s) {}
 
+static inline mf_t
+sampler_mis(const path_t *p, const mf_t pdf)
+{
+  // evaluate combined balance heuristic for wavelength and path construction:
+  md_t pdf_path = md_set1(1.0);
+  for(int v=1;v<p->length-1;v++) // forget about G terms, they'll cancel out:
+    pdf_path = md_mul(pdf_path, mf_2d(p->v[v].pdf));
+
+  md_t our = md_mul(mf_2d(pdf), pdf_path);
+  return md_2f(md_div(our, md_set1(md_hsum(our))));
+}
+
 void sampler_create_path(path_t *path)
 {
   path->v[0].mode = s_emit; // start at the light
@@ -40,7 +52,10 @@ void sampler_create_path(path_t *path)
     if(nee_sample(path)) return;
     const int v2 = path->length-1;
     if(mf_all(mf_gt(path->v[v2].throughput, mf_set1(0.0f))) && (path->v[v2].mode & s_sensor))
-      pointsampler_splat(path, path->v[v2].throughput);
+    {
+      const mf_t weight = sampler_mis(path, path->v[v2].pdf);
+      pointsampler_splat(path, mf_mul(weight, path->v[v2].throughput));
+    }
     path_pop(path);
   }
 }

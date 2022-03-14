@@ -186,8 +186,7 @@ mf_t sample_d(path_t *p, void *data)
   {
     if(cos_out_ng >= 0.0f) return mf_set1(0.0f);
   }
-  // XXX
-  // else if(cos_out_ng <= 0.0f) return mf_set1(0.0f);
+  else if(cos_out_ng <= 0.0f) return mf_set1(0.0f);
 
   mf_t throughput = mf_set1(0.0f);
   if(p->v[0].mode & s_emit)
@@ -226,7 +225,7 @@ float tan2_i = (1 - cos_i * cos_i ) / ( cos_i * cos_i ) ;
 float att = 2.0f / (1 + sqrtf (1 + alpha2 * tan2_i ) ) ;
   return mf_mul(p->v[v].shading.rd, mf_set1(att/M_PI)); // XXX
 #endif
-  return mf_mul(p->v[v].shading.rd, mf_set1(1.0f/M_PI)); // XXX
+  // return mf_mul(p->v[v].shading.rd, mf_set1(1.0f/M_PI)); // XXX
   const float cos_out_ng = dotproduct(p->v[v].hit.gn, p->e[v+1].omega);
   const float cos_in_ns = -dotproduct(p->v[v].hit.n, p->e[v].omega);
   if(p->v[0].mode & s_emit)

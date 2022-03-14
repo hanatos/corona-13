@@ -68,6 +68,8 @@ STATIC_HEADERS=\
     include/pathspace/raydifferentials.h\
     include/pathspace/nee.h\
     include/pathspace/mnee.h\
+    include/pathspace/mvnee.h\
+    include/pathspace/equiangular.h\
     include/pathspace/tech.h\
     include/screenshot.h\
     include/lights.h

@@ -295,6 +295,7 @@ void path_pop(path_t *path)
 
   // for mvnee: pop once more! vertex tech determines this:
   if(v && path->v[v-1].tech == s_tech_mvnee) path_pop(path);
+  if(v && path->v[v-1].tech == s_tech_equiangular) path_pop(path);
 }
 
 // return 1 if p->v[v] is visible from p->v[v-1].

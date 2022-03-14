@@ -68,33 +68,17 @@ mvnee_pdf(const path_t* p, int v)
   else return mf_set1(0.0f);
 
   // res is now the vertex area pdf of sampling the light source position v[v]
-
-  const double cosh = (v ? 1.0 : -1.0) * dotproduct(p->e[e0].omega, p->e[e1].omega);
-  if(cosh <= 0.0) return mf_set1(0.0); // no backscattering
   const float distv[] = {
     p->v[v].hit.x[0] - p->v[v0].hit.x[0],
     p->v[v].hit.x[1] - p->v[v0].hit.x[1],
     p->v[v].hit.x[2] - p->v[v0].hit.x[2]};
   const double s = sqrt(dotproduct(distv, distv));
-  const double t = dotproduct(distv, p->e[e0].omega) / s;
-  const double sinh2 = MAX(0.0, 1.0-cosh*cosh);
-  const double sinh  = sqrt(sinh2);
-  const double r = sqrt(1.0/(4.0*sinh2) - (0.5-t)*(0.5-t)) - sqrt(1.0/(4.0*sinh2) - 0.25);
-  // compute a few needed intermediates (spherical coordinates)
-  const double sp_r     = sqrt(fmax(0.0, s*s * (t-0.5)*(t-0.5) + s*s*r*r));
-  const double sp_theta = acos(CLAMP((t-0.5) * s / sp_r, -1.0, 1.0));
-
-  // compute vertex area measure pdf of the double scatter vertex v[v1]
-  const double den = 16.0*pow(sp_r, 4.0) + pow(s, 4.0) - 8.0 *sp_r*sp_r *s*s * cos(2*sp_theta);
-  const double DthetaDsp_r     = 4.0*s*(4.0*sp_r*sp_r + s*s)*sin(sp_theta) / den;
-  const double DthetaDsp_theta = 4.0*sp_r*s*(s*s - 4.0*sp_r*sp_r)*cos(sp_theta) / den;
-  // additional derivatives:
-  const double DtDsp_theta = - sp_r/s * sin(sp_theta);
-  const double DtDsp_r     =    1.0/s * cos(sp_theta);
-
+  const double sinh = MAX(1e-8, 1.0 - cos_theta*cos_theta);
+  const double theta = acos(CLAMP(cos_theta, 0.0, 1.0));
   const float g = p->v[v1].interior.mean_cos;
   const double hg_pdf = sample_eval_hg_fwd(g, p->e[e0].omega, p->e[e1].omega);
-  return mf_mul(res, mf_set1(hg_pdf * fabs(sinh / (sp_r*sp_r * sin(sp_theta))) * fabs(DthetaDsp_r * DtDsp_theta - DthetaDsp_theta * DtDsp_r)));
+  return mf_mul(res, // v[v], the nee vertex
+      mf_set1(fabs(hg_pdf/(p->e[e0].dist*p->e[e0].dist*p->e[e1].dist*p->e[e1].dist) * theta/(sinh * s))));
 }
 
 // return on-surface pdf of vertex v if it had been sampled the other way around via
@@ -183,15 +167,20 @@ mvnee_sample(path_t *p)
   // fprintf(stderr, "mean cos %g\n", g);
   // sample new vertex v on edge between the two:
   p->length = v+1; // instruct pointsampler to get new dimensions
-  float hg_r1  = pointsampler(p, s_dim_nee_x); // used for cosh
-  float hg_r2  = pointsampler(p, s_dim_nee_y); // usef for isotropic phi
+  float hg_r1 = pointsampler(p, s_dim_nee_x); // used for cosh
+  float hg_r2 = pointsampler(p, s_dim_nee_y); // usef for isotropic phi
   // sample hg with g
   float hg_pdf = 0.0f, omega[3];
   sample_hg_fwd(g, hg_r1, hg_r2, omega, &hg_pdf);
+  const double cosh = omega[0];
+  const double sinh = sqrt(MAX(0.0, 1.0-cosh*cosh));
+  const double theta = acos(CLAMP(omega[0], 0.0, 1.0));
 
   // the cosine from phase function sampling defines the angle between e[v].w and e[v+1].w.
   const float dist_r = pointsampler(p, s_dim_nee_light1);
-  const float t = dist_r; // uniformly
+  // sample our new inverse cdf:
+  const float t = CLAMP(cosf(theta - dist_r * theta) * sinf(dist_r * theta) / MAX(1e-5, sinh), 0.0f, 1.0f);
+  // const float t = dist_r; // uniformly
 
   // angle around axis of symmetry
   const float phi = 2.0f*M_PI*hg_r2;
@@ -256,18 +245,14 @@ mvnee_sample(path_t *p)
     shader_vol_transmittance(p, v);
 
   // TODO: multiply by shader_brdf[v] / pdf_hg to account for backward scattering normalisation
-  // evalutate patented pre-cancelled jacobian
-  const double cosh = omega[0];
-  const double sinh = sqrt(MAX(0.0, 1.0-cosh*cosh));
-  // compute a few needed intermediates (spherical coordinates)
-  const double sp_r     = sqrt(fmax(0.0, s*s * (t-0.5)*(t-0.5) + s*s*r*r));
-  const double sp_theta = acos(CLAMP((t-0.5) * s / sp_r, -1.0, 1.0));
-  const double GJ       = fabs(4.0*sp_r*sin(sp_theta) / MAX(1e-11, fabs((4.0*sp_r*sp_r*cos(2.0*sp_theta) - s*s)*sinh)));
 
+  // these are the terms we don't sample:
   const md_t f = md_mul(md_mul(md_mul(mf_2d(bsdf), mf_2d(transmittance)), md_mul(mf_2d(edf), mf_2d(p->v[v].interior.mu_s))),
     md_set1(path_lambert(p, v-1, p->e[v].omega)*path_lambert(p, v+1, p->e[v+1].omega)));
-  // const double throughput = 1e-10;// XXXf * GJ;
-  const md_t throughput = md_mul(f, md_set1(GJ));
+  // this is when just sampling the phase function, the remaining jacobian:
+  // const md_t throughput = md_mul(f, md_set1(GJ));
+  // this is the remaining weight when sampling both theta and t:
+  const md_t throughput = md_mul(f, md_set1(theta/(s*sinh)));
   p->v[v].throughput = md_2f(md_mul(throughput, mf_2d(p->v[v-1].throughput)));
 
   p->v[v+1].throughput = p->v[v].throughput; // just set both to the same thing
@@ -316,13 +301,7 @@ fail:
   p->v[v+1].pdf = pdf_nee;
   
   // compute vertex area measure pdf of double scatter vertex v[v]:
-  const double den = 16.0*pow(sp_r, 4.0) + pow(s, 4.0) - 8.0 *sp_r*sp_r *s*s * cos(2*sp_theta);
-  const double DthetaDsp_r     = 4.0*s*(4.0*sp_r*sp_r + s*s)*sin(sp_theta) / den;
-  const double DthetaDsp_theta = 4.0*sp_r*s*(s*s - 4.0*sp_r*sp_r)*cos(sp_theta) / den;
-  // additional derivatives:
-  const double DtDsp_theta = - sp_r/s * sin(sp_theta);
-  const double DtDsp_r     =    1.0/s * cos(sp_theta);
-  p->v[v].pdf = mf_set1(hg_pdf * fabs(sinh / (sp_r*sp_r * sin(sp_theta))) * fabs(DthetaDsp_r * DtDsp_theta - DthetaDsp_theta * DtDsp_r));
+  p->v[v].pdf = mf_set1(hg_pdf * fabs(1.0f/(p->e[v].dist*p->e[v].dist*p->e[v+1].dist*p->e[v+1].dist) * theta/(sinh * s)));
 
   return 0;
 }
