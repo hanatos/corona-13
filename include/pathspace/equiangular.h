@@ -235,9 +235,6 @@ equiangular_sample(path_t *p)
   p->v[v].tech = s_tech_equiangular;
   p->length = v+1; // instruct pointsampler to get new dimensions
 
-  if((p->v[v].mode & s_volume) && mf_all(mf_eq(p->v[v].interior.mu_t, mf_set1(0.0f))))
-    goto fail;
-
   // init edge v..v+1:
   p->length = v+2; // constructed vertex v and v+1
   for(int k=0;k<3;k++) p->e[v+1].omega[k] = p->v[v+1].hit.x[k] - p->v[v].hit.x[k];
@@ -245,8 +242,21 @@ equiangular_sample(path_t *p)
   for(int k=0;k<3;k++) p->e[v+1].omega[k] /= p->e[v+1].dist;
   if(!path_visible(p, v+1)) goto fail;
 
+  // we sampled this already during nee. in particular, don't use any more
+  // random numbers on the last vertex (there aren't any, nee has to be
+  // performed one vertex back)
+  p->sensor.aperture_set = 1;
+  if(p->v[0].mode & s_emit)
+    edf = view_cam_connect(p);
+  // TODO: also reconnect to light (in case of cosine power EDF)
+
   mf_t bsdf = shader_brdf(p, v); // set mode on vertex v
+  if(!(p->v[v].mode & s_volume)) goto fail;
+  if(mf_all(mf_eq(p->v[v].interior.mu_t, mf_set1(0.0f))))
+    goto fail;
+
   if(path_edge_init_volume(p, v+1)) goto fail;
+  if(p->e[v+1].vol.shader == -1) goto fail; // no volume no equiangular
 
   p->e[v+1].transmittance = shader_vol_transmittance(p, v+1);
   p->v[v+1].throughput = mf_mul(mf_mul(edf, p->e[v+1].transmittance), mf_mul(mf_set1(path_G(p, v+1)), mf_mul(p->v[v].throughput, bsdf)));
