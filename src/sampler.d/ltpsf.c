@@ -27,8 +27,11 @@
 // std forward pathtracer (light tracer)
 
 // DEBUG: compare against equiangular like this
+#ifdef DEBUG_COMP_EQUI
 #define wprefix(name) equiangular_ ## name
-// #define wprefix(name) mvnee_ ## name
+#else
+#define wprefix(name) mvnee_ ## name
+#endif
 
 typedef struct sampler_t {} sampler_t;
 sampler_t *sampler_init() {return NULL;}

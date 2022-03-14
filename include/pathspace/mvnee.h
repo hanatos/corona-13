@@ -48,6 +48,7 @@ mvnee_pdf(const path_t* p, int v)
   int e0 = v ? v-1 : 2;    // towards double scattering vertex
   int e1 = v ? v   : 1;    // towards last point
   if(!mvnee_possible(p, v0)) return mf_set1(0.0f);
+  if(!primid_invalid(p->v[v1].hit.prim)) return mf_set1(0.0f);
 
   mf_t p_egv[3];
   lights_pdf_type(p, v0, p_egv);

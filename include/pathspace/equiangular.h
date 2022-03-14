@@ -32,6 +32,7 @@ equiangular_pdf(const path_t* p, int v)
   int e0 = v ? v-1 : 2;    // towards double scattering vertex
   int e1 = v ? v   : 1;    // towards last point
   if(!equiangular_possible(p, v0)) return mf_set1(0.0f);
+  if(!primid_invalid(p->v[v1].hit.prim)) return mf_set1(0.0f);
 
   mf_t p_egv[3];
   lights_pdf_type(p, v0, p_egv);
@@ -53,36 +54,32 @@ equiangular_pdf(const path_t* p, int v)
 
   // res is now the vertex area pdf of sampling the light source position v[v]
 
-  return res; // XXX TODO
+  double equi_pdf;
+  float tolight[3];
+  for(int k=0;k<3;k++) tolight[k] = p->v[v].hit.x[k] - p->v[v0].hit.x[k];
+  const double delta = dotproduct(p->e[v].omega, tolight);
+  float ortho[3];
+  for(int k=0;k<3;k++)
+    ortho[k] = p->v[v0].hit.x[k] + p->e[e0].omega[k] * delta - p->v[v].hit.x[k];
+  const double D = sqrtf(dotproduct(ortho, ortho));
 
-#if 0 // XXX TODO
-  const double cosh = (v ? 1.0 : -1.0) * dotproduct(p->e[e0].omega, p->e[e1].omega);
-  if(cosh <= 0.0) return mf_set1(0.0); // no backscattering
-  const float distv[] = {
-    p->v[v].hit.x[0] - p->v[v0].hit.x[0],
-    p->v[v].hit.x[1] - p->v[v0].hit.x[1],
-    p->v[v].hit.x[2] - p->v[v0].hit.x[2]};
-  const double s = sqrt(dotproduct(distv, distv));
-  const double t = dotproduct(distv, p->e[e0].omega) / s;
-  const double sinh2 = MAX(0.0, 1.0-cosh*cosh);
-  const double sinh  = sqrt(sinh2);
-  const double r = sqrt(1.0/(4.0*sinh2) - (0.5-t)*(0.5-t)) - sqrt(1.0/(4.0*sinh2) - 0.25);
-  // compute a few needed intermediates (spherical coordinates)
-  const double sp_r     = sqrt(fmax(0.0, s*s * (t-0.5)*(t-0.5) + s*s*r*r));
-  const double sp_theta = acos(CLAMP((t-0.5) * s / sp_r, -1.0, 1.0));
+  double a = 0.0 - delta;
+  double b = 10000.0 - delta; // sorry, this is an infinite volume :(
 
-  // compute vertex area measure pdf of the double scatter vertex v[v1]
-  const double den = 16.0*pow(sp_r, 4.0) + pow(s, 4.0) - 8.0 *sp_r*sp_r *s*s * cos(2*sp_theta);
-  const double DthetaDsp_r     = 4.0*s*(4.0*sp_r*sp_r + s*s)*sin(sp_theta) / den;
-  const double DthetaDsp_theta = 4.0*sp_r*s*(s*s - 4.0*sp_r*sp_r)*cos(sp_theta) / den;
-  // additional derivatives:
-  const double DtDsp_theta = - sp_r/s * sin(sp_theta);
-  const double DtDsp_r     =    1.0/s * cos(sp_theta);
+  const double t = p->e[e0].dist - delta;
+  if(D > 1e-8)
+  {
+    double thetaA = atan(a/D);
+    double thetaB = atan(b/D);
+    equi_pdf = D/fabs(thetaA - thetaB)/(D*D + t*t);
+  }
+  else
+  {
+    equi_pdf = a*b / (b - a) / (t*t);
+  }
+  mf_t p_bsdf = shader_pdf(p, v1);
 
-  const float g = p->v[v1].interior.mean_cos;
-  const double hg_pdf = sample_eval_hg_fwd(g, p->e[e0].omega, p->e[e1].omega);
-  return mf_mul(res, mf_set1(hg_pdf * fabs(sinh / (sp_r*sp_r * sin(sp_theta))) * fabs(DthetaDsp_r * DtDsp_theta - DthetaDsp_theta * DtDsp_r)));
-#endif
+  return mf_mul(mf_mul(p_bsdf, res), mf_set1(equi_pdf * path_G(p, e0)));
 }
 
 // return on-surface pdf of vertex v if it had been sampled the other way around via
@@ -155,18 +152,10 @@ equiangular_sample(path_t *p)
 
   // ask edf and bsdf for their consent:
   if(!mf_any(mf_gt(edf, mf_set1(0.0f)))) goto fail;
-  // compute brdf and throughput:
-  mf_t bsdf = shader_brdf(p, v-1); // set mode on vertex v-1
-
-  // determine side of surface and volume from that (brdf sets mode)
-  if(path_edge_init_volume(p, v)) goto fail;
 
   // move vertex v to v+1, free up space for v[v], our in-between vertex.
   p->e[v+1] = p->e[v];
   p->v[v+1] = p->v[v];
-  // get volume properties:
-  if(p->e[v].vol.shader == -1) goto fail; // no volume no equiangular
-  const float g = p->e[v].vol.mean_cos;
   // sample new vertex v on edge between the two:
 
   // ================================================================================================
@@ -175,39 +164,37 @@ equiangular_sample(path_t *p)
   memset(p->v+v, 0, sizeof(vertex_t));
   memset(p->e+v, 0, sizeof(edge_t));
 
-    // remember our random number offset
-    p->v[v].rand_beg = p->v[v-1].rand_beg + p->v[v-1].rand_cnt;
-    p->v[v].pdf = mf_set1(1.0f); // everybody will just *= his sampling here.
-    p->v[v].throughput = p->v[v-1].throughput;
+  // remember our random number offset
+  p->v[v].rand_beg = p->v[v-1].rand_beg + p->v[v-1].rand_cnt;
+  p->v[v].pdf = mf_set1(1.0f);
+  p->v[v].throughput = p->v[v-1].throughput;
 
-    // sample the bsdf at vertex v-1. also inits e[v] with volume information.
-    p->v[v].throughput = mf_mul(p->v[v].throughput, shader_sample(p));
+  // sample the bsdf at vertex v-1. also inits e[v] with volume information.
+  p->v[v].throughput = mf_mul(p->v[v].throughput, shader_sample(p));
   if(path_edge_init_volume(p, v)) goto fail;
+  if(p->e[v].vol.shader == -1) goto fail; // no volume no equiangular
 
-    // this includes s_dim_russian_r, in case it is needed later
-    // by means of calling path_russian_roulette(.).
-    p->v[v].rand_cnt = s_dim_num_extend;
+  // this includes s_dim_russian_r, in case it is needed later
+  // by means of calling path_russian_roulette(.).
+  p->v[v].rand_cnt = s_dim_num_extend;
 
   // bsdf sampling failed?
   if(mf_all(mf_lte(p->v[v].throughput, mf_set1(0.0f)))) goto fail;
 
-  float clipdist = FLT_MAX;
-  p->e[v].dist = FLT_MAX;
   // set distance by equiangular sampling!
   // stolen from implementation in smallpt: https://github.com/sakanaman/equi-angular-sampling.git
-    float tolight[3];
-    for(int k=0;k<3;k++) tolight[k] = p->v[v+1].hit.x[k] - p->v[v-1].hit.x[k];
-    const double delta = dotproduct(p->e[v].omega, tolight);
-  // const double delta = ray.d.dot(light_pos - ray.o);
-    float ortho[3];
-    for(int k=0;k<3;k++)
-      ortho[k] = p->v[v-1].hit.x[k] + p->e[v].omega[k] * delta - p->v[v+1].hit.x[k];
-  // const double D = ((ray.o + ray.d * delta) - light_pos).length();
-    const double D = sqrtf(dotproduct(ortho, ortho));
+  float tolight[3];
+  for(int k=0;k<3;k++) tolight[k] = p->v[v+1].hit.x[k] - p->v[v-1].hit.x[k];
+  const double delta = dotproduct(p->e[v].omega, tolight);
+  float ortho[3];
+  for(int k=0;k<3;k++)
+    ortho[k] = p->v[v-1].hit.x[k] + p->e[v].omega[k] * delta - p->v[v+1].hit.x[k];
+  const double D = sqrtf(dotproduct(ortho, ortho));
 
   double a = 0.0 - delta;
   double b = 10000.0 - delta; // sorry, this is an infinite volume :(
 
+  double equi_pdf;
   double t;
   const float u = pointsampler(p, s_dim_free_path);
   if(D > 1e-8)
@@ -216,35 +203,35 @@ equiangular_sample(path_t *p)
     double thetaB = atan(b/D);
 
     t = D * tan((1.0 - u)*thetaA + u*thetaB);
-    p->e[v].pdf = mf_set1(D/fabs(thetaA - thetaB)/(D*D + t*t));
+    equi_pdf = D/fabs(thetaA - thetaB)/(D*D + t*t);
   }
   else
   {
     t = a*b / (b + (a - b)*u);
-    p->e[v].pdf = mf_set1(a*b / (b - a) / (t*t));
+    equi_pdf = a*b / (b - a) / (t*t);
   }
   p->e[v].dist = delta + t;
+  p->v[v].hit.prim = INVALID_PRIMID;
+  p->v[v].hit.shader = p->e[v].vol.shader;
 
-    // update vertex position:
-    for(int k=0;k<3;k++)
-      p->v[v].hit.x[k] = p->v[v-1].hit.x[k] + p->e[v].dist * p->e[v].omega[k];
+  // update vertex position:
+  for(int k=0;k<3;k++)
+    p->v[v].hit.x[k] = p->v[v-1].hit.x[k] + p->e[v].dist * p->e[v].omega[k];
 
-    if(!path_visible(p, v  )) goto fail;
-    if(!path_visible(p, v+1)) goto fail;
+  if(!path_visible(p, v  )) goto fail;
 
-    float prep = shader_prepare(p, v);
+  (void)shader_prepare(p, v);
 
   // include distance sampling in projected solid angle pdf on vertex (will be
   // converted to on-surface on the outside, for instance in path_extend)
-  p->v[v].pdf = mf_mul(p->v[v].pdf, p->e[v].pdf);
-  p->e[v].transmittance = shader_vol_transmittance(p, v);
+  p->v[v].pdf = mf_mul(p->v[v].pdf, mf_set1(equi_pdf));
   p->v[v].pdf = mf_mul(p->v[v].pdf, mf_set1(path_G(p, v)));
+  p->e[v].transmittance = shader_vol_transmittance(p, v); // also inits edge transmittance and pdf, need to overwrite
+  p->e[v].pdf = mf_set1(equi_pdf);
 
   // get the rest of the measurement contribution which we did not sample (mostly 1/mu_t):
   p->v[v].throughput = mf_mul(p->v[v].throughput, mf_div(p->e[v].transmittance, p->e[v].pdf));
 
-  // store for potential path_pop()
-  // path->v[v].total_throughput = path->throughput; // XXX we're not popping up to here, or are we?
   p->v[v].tech = s_tech_equiangular;
   p->length = v+1; // instruct pointsampler to get new dimensions
 
@@ -252,12 +239,17 @@ equiangular_sample(path_t *p)
     goto fail;
 
   // init edge v..v+1:
+  p->length = v+2; // constructed vertex v and v+1
   for(int k=0;k<3;k++) p->e[v+1].omega[k] = p->v[v+1].hit.x[k] - p->v[v].hit.x[k];
   p->e[v+1].dist = sqrtf(dotproduct(p->e[v+1].omega, p->e[v+1].omega));
   for(int k=0;k<3;k++) p->e[v+1].omega[k] /= p->e[v+1].dist;
+  if(!path_visible(p, v+1)) goto fail;
+
+  mf_t bsdf = shader_brdf(p, v); // set mode on vertex v
+  if(path_edge_init_volume(p, v+1)) goto fail;
+
   p->e[v+1].transmittance = shader_vol_transmittance(p, v+1);
-  bsdf = shader_brdf(p, v);
-  p->v[v+1].throughput = mf_mul(mf_mul(bsdf, p->e[v+1].transmittance), mf_div(mf_set1(path_G(p, v+1)), p->v[v+1].pdf));
+  p->v[v+1].throughput = mf_mul(mf_mul(edf, p->e[v+1].transmittance), mf_mul(mf_set1(path_G(p, v+1)), mf_mul(p->v[v].throughput, bsdf)));
 
   if(0)
   {
@@ -265,6 +257,7 @@ fail:
     p->v[v].pdf = mf_set1(0.0f);
     p->throughput = mf_set1(0.0f);
     p->v[v].throughput = mf_set1(0.0f);
+    p->v[v].tech = s_tech_equiangular;
     p->v[v].flags = s_none;
     p->v[v].mode = s_absorb;
     p->v[v].rand_cnt = s_dim_num_nee;
@@ -275,8 +268,6 @@ fail:
   }
   p->v[v  ].rand_cnt = s_dim_num_nee;
   p->v[v+1].rand_cnt = s_dim_num_nee;
-  p->length = v+2; // constructed vertex v and v+1
-
   p->v[v+1].total_throughput = p->v[v+1].throughput; // store for path_pop()
 
   return 0;
