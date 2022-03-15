@@ -55,7 +55,7 @@ mvnee_pdf(const path_t* p, int v)
 
   mf_t res = mf_set1(0.0f);
   float cos_theta = dotproduct(p->e[e0].omega, p->e[e1].omega);
-  if(cos_theta <= 0.0f) return mf_set1(0.0f);
+  if(cos_theta < 0.0f) return mf_set1(0.0f);
 
   // light tracer connects to camera
   if(((p->v[0].mode & s_emit)>0) ^ (v==0))
@@ -79,7 +79,8 @@ mvnee_pdf(const path_t* p, int v)
   const float g = p->v[v1].interior.mean_cos;
   const double hg_pdf = sample_eval_hg_fwd(g, p->e[e0].omega, p->e[e1].omega);
   return mf_mul(res, // v[v], the nee vertex
-      mf_set1(fabs(hg_pdf/(p->e[e0].dist*p->e[e0].dist*p->e[e1].dist*p->e[e1].dist) * theta/(sinh * s))));
+      mf_set1(fabs(hg_pdf/(p->e[e0].dist*p->e[e0].dist*p->e[e1].dist*p->e[e1].dist)
+          * (sinh * s)/theta)));
 }
 
 // return on-surface pdf of vertex v if it had been sampled the other way around via
@@ -302,7 +303,8 @@ fail:
   p->v[v+1].pdf = pdf_nee;
   
   // compute vertex area measure pdf of double scatter vertex v[v]:
-  p->v[v].pdf = mf_set1(hg_pdf * fabs(1.0f/(p->e[v].dist*p->e[v].dist*p->e[v+1].dist*p->e[v+1].dist) * theta/(sinh * s)));
+  p->v[v].pdf = mf_set1(hg_pdf * fabs(1.0f/(p->e[v].dist*p->e[v].dist*p->e[v+1].dist*p->e[v+1].dist) *
+        (sinh * s)/theta));
 
   return 0;
 }

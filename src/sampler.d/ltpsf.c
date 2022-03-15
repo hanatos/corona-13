@@ -26,12 +26,8 @@
 
 // std forward pathtracer (light tracer)
 
-// DEBUG: compare against equiangular like this
-#ifdef DEBUG_COMP_EQUI
-#define wprefix(name) equiangular_ ## name
-#else
-#define wprefix(name) mvnee_ ## name
-#endif
+// #define DEBUG_COMP_MVNEE=1
+// #define DEBUG_COMP_EQUI=1
 
 typedef struct sampler_t {} sampler_t;
 sampler_t *sampler_init() {return NULL;}
@@ -51,11 +47,45 @@ sampler_mis(
   for(int v=1;v<ve-1;v++) // the first two vertices 0,1 are created in a single path_extend call and have only 1 pdf
     pdf_path = md_mul(pdf_path, mf_2d(p->v[v].pdf));
 
+  md_t pdf1 = md_mul(mf_2d(path_pdf_extend(p, ve-1)), mf_2d(nee_pdf(p, ve)));
+#ifdef DEBUG_COMP_MVNEE
+  md_t pdf2 = mf_2d(mvnee_pdf(p, ve));
+#else
+  md_t pdf2 = md_set1(0.0);
+#endif
+#ifdef DEBUG_COMP_EQUI
+  md_t pdf3 = mf_2d(equiangular_pdf(p, ve));
+#else
+  md_t pdf3 = md_set1(0.0);
+#endif
+  md_t our;
+
+#if 0 // trust the pdf on the path
+  our = md_mul(mf_2d(p->v[ve-1].pdf), mf_2d(p->v[ve].pdf));
+  if(tech == 1) pdf1 = our;// = pdf1;
+  if(tech == 2) pdf2 = our;// = pdf2;
+  if(tech == 3) pdf2 = our;// = pdf3;
+#else // trust the explicit eval
+  if(tech == 1) our = pdf1;
+  if(tech == 2) our = pdf2;
+  if(tech == 3) our = pdf3;
+#endif
+
+#if 0 // "power heuristic"
+  pdf1 = md_mul(pdf1, pdf1);
+  pdf2 = md_mul(pdf2, pdf2);
+  pdf3 = md_mul(pdf3, pdf3);
+  our  = md_mul(our, our);
+#endif
+  // evaluate combined balance heuristic for wavelength and path construction:
+  return mf_div(md_2f(our), mf_set1(mf_hsum(md_2f(md_add(pdf1, md_add(pdf2, pdf3))))));
+
+#if 0
   // our path has the following two vertex area pdfs at [ve-1] and [ve]:
   md_t our = md_mul(md_mul(mf_2d(p->v[ve-1].pdf), mf_2d(p->v[ve].pdf)), pdf_path);
   md_t other;
   if(tech == 1)                         // we are nee, the other is mvnee
-    other = mf_2d(wprefix(pdf)(p, ve)); // this returns the product of the last two vertices
+    other = mf_2d(mvnee_pdf(p, ve)); // this returns the product of the last two vertices
   else if(tech == 2)                    // we are mvnee, the other is nee
     other = md_mul(mf_2d(p->v[ve-1].pdf), mf_2d(nee_pdf(p, ve)));
   else return mf_set1(0.0f);
@@ -64,6 +94,7 @@ sampler_mis(
 
   // evaluate combined balance heuristic for wavelength and path construction:
   return mf_div(md_2f(our), mf_set1(mf_hsum(md_2f(md_add(other, our)))));
+#endif
 }
 
 void sampler_create_path(path_t *path)
@@ -108,9 +139,10 @@ void sampler_create_path(path_t *path)
 //       if(path->length == 2)                   // 2-vtx path prefix (sphere)
 //       // if(path->v[1].hit.prim.shapeid == 0)    // forming highlight on sphere
 // #endif
-    if(wprefix(possible)(path, path->length-1))
+#ifdef DEBUG_COMP_MVNEE
+    if(mvnee_possible(path, path->length-1))
     { // mvnee
-      if(wprefix(sample)(path)) return;
+      if(mvnee_sample(path)) return;
       const int v3 = path->length-1;
       // if(path->v[2].hit.prim.shapeid == 0)
       if(mf_any(mf_gt(path->v[v3].throughput, mf_set1(0.0f))) && (path->v[v3].mode & s_sensor))
@@ -120,6 +152,21 @@ void sampler_create_path(path_t *path)
       }
       path_pop(path);
     }
+#endif
+#ifdef DEBUG_COMP_EQUI
+    if(equiangular_possible(path, path->length-1))
+    { // equiangular sampling
+      if(equiangular_sample(path)) return;
+      const int v3 = path->length-1;
+      // if(path->v[2].hit.prim.shapeid == 0)
+      if(mf_any(mf_gt(path->v[v3].throughput, mf_set1(0.0f))) && (path->v[v3].mode & s_sensor))
+      {
+        mf_t w = sampler_mis(path, 3);
+        pointsampler_splat(path, mf_mul(path->v[v3].throughput, w));
+      }
+      path_pop(path);
+    }
+#endif
 // #ifdef WHALE // whale
 //     if(path->length == 3) return; // done everything we could
 // #else // spheres
