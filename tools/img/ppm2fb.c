@@ -25,8 +25,8 @@ int main(int argc, char *argv[])
   // i totally hate how ppm are always flipped, no matter what you do:
   for(uint64_t j=0;j<height;j++)
     for(uint64_t i=0;i<3*width;i++)
-      data[3*width*(height-1-j)+i] = data8[3*width*j+i]/255.0f;
-      // data[3*width*(height-1-j)+i] = powf(data8[3*width*j+i]/255.0f, 1.0f/2.8f);
+      // data[3*width*(height-1-j)+i] = data8[3*width*j+i]/255.0f;
+      data[3*width*(height-1-j)+i] = powf(data8[3*width*j+i]/255.0f, 2.8f);
   free(data8);
 
   int err = fb_tex_from_float(
