@@ -78,9 +78,10 @@ mvnee_pdf(const path_t* p, int v)
   const double theta = acos(CLAMP(cos_theta, 0.0, 1.0));
   const float g = p->v[v1].interior.mean_cos;
   const double hg_pdf = sample_eval_hg_fwd(g, p->e[e0].omega, p->e[e1].omega);
+  const double sinc = theta < 1e-7 ? 1.0 : sinh / theta;
   return mf_mul(res, // v[v], the nee vertex
       mf_set1(fabs(hg_pdf/(p->e[e0].dist*p->e[e0].dist*p->e[e1].dist*p->e[e1].dist)
-          * (sinh * s)/theta)));
+          * s * sinc)));
 }
 
 // return on-surface pdf of vertex v if it had been sampled the other way around via
@@ -254,7 +255,8 @@ mvnee_sample(path_t *p)
   // this is when just sampling the phase function, the remaining jacobian:
   // const md_t throughput = md_mul(f, md_set1(GJ));
   // this is the remaining weight when sampling both theta and t:
-  const md_t throughput = md_mul(f, md_set1(theta/(s*sinh)));
+  const double isinc = theta < 1e-7 ? 1.0 : theta / sinh;
+  const md_t throughput = md_mul(f, md_set1(isinc/s));
   p->v[v].throughput = md_2f(md_mul(throughput, mf_2d(p->v[v-1].throughput)));
 
   p->v[v+1].throughput = p->v[v].throughput; // just set both to the same thing
@@ -303,8 +305,9 @@ fail:
   p->v[v+1].pdf = pdf_nee;
   
   // compute vertex area measure pdf of double scatter vertex v[v]:
-  p->v[v].pdf = mf_set1(hg_pdf * fabs(1.0f/(p->e[v].dist*p->e[v].dist*p->e[v+1].dist*p->e[v+1].dist) *
-        (sinh * s)/theta));
+  const double sinc = theta < 1e-7 ? 1.0 : sinh / theta;
+  p->v[v].pdf = mf_set1(hg_pdf * fabs(1.0/(p->e[v].dist*p->e[v].dist*p->e[v+1].dist*p->e[v+1].dist) *
+        s * sinc));
 
   return 0;
 }
