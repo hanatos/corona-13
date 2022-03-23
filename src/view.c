@@ -333,6 +333,7 @@ view_t *view_init()
   {
     snprintf(filename, sizeof(filename), "%s_%s_fb%02d.fb", rt.basename, rt.output_filename, c);
     fb_init(v->fb + c, v->width, v->height, 3, filename);
+    v->fb[c].retain = fb_retain;
   }
   v->dbor = 0;
   if(v->num_dbors > 1)
@@ -343,9 +344,11 @@ view_t *view_init()
     {
       snprintf(filename, sizeof(filename), "%s_%s_dbor%02d.fb", rt.basename, rt.output_filename, c);
       fb_init(v->dbor + c, v->width, v->height, 3, filename);
+      v->dbor[c].retain = fb_retain;
       fprintf(stderr, "[view] dbor cascade buffer [%02d] %s\n", c, filename);
       snprintf(filename, sizeof(filename), "%s_%s_gcov%02d.fb", rt.basename, rt.output_filename, c);
       fb_init(v->gcov + c, v->width, v->height, 3, filename);
+      v->gcov[c].retain = fb_retain;
     }
   }
 
