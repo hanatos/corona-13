@@ -39,7 +39,7 @@ equiangular_pdf(const path_t* p, int v)
 
   mf_t res = mf_set1(0.0f);
   float cos_theta = dotproduct(p->e[e0].omega, p->e[e1].omega);
-  if(cos_theta <= 0.0f) return mf_set1(0.0f);
+  if(cos_theta < 0.0f) return mf_set1(0.0f);
 
   // light tracer connects to camera
   if(((p->v[0].mode & s_emit)>0) ^ (v==0))
