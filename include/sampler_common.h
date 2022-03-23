@@ -231,7 +231,7 @@ static inline float sample_eval_hg_fwd(
     const float *wi,
     const float *wo)
 {
-#if 1 // XXX DEBUG
+#if 0 // XXX DEBUG
   {
   const float k = 1.0/(1.0-g);
   const float cos_theta = dotproduct(wi, wo);
@@ -254,7 +254,7 @@ static inline void sample_hg_fwd(
     float *out,     // output in local tangent space coords, out[0] is forward
     float *pdf)     // if != 0, computes and returns pdf here.
 {
-#if 1 // XXX DEBUG
+#if 0 // XXX DEBUG
   const float k = 1.0/(1.0-g);
   sample_cos_k(out+1, out+2, out, k, r1, r2);
   if(pdf) *pdf = powf(out[0], k) * (k+1.0f)/(2.0f*M_PI);
