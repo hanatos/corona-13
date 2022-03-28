@@ -158,6 +158,7 @@ equiangular_sample(path_t *p)
   // move vertex v to v+1, free up space for v[v], our in-between vertex.
   p->e[v+1] = p->e[v];
   p->v[v+1] = p->v[v];
+  p->v[v+1].rand_beg = p->v[v].rand_beg + s_dim_num_nee;
   // sample new vertex v on edge between the two:
 
   // ================================================================================================
