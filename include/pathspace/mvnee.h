@@ -166,6 +166,8 @@ mvnee_sample(path_t *p)
   // move vertex v to v+1, free up space for v[v], our in-between vertex.
   p->e[v+1] = p->e[v];
   p->v[v+1] = p->v[v];
+  p->v[v+1].rand_beg = p->v[v].rand_beg + s_dim_num_nee;
+
   // get volume properties:
   if(p->e[v].vol.shader == -1) goto fail; // no volume no mvnee.
   const float g = p->e[v].vol.mean_cos;
@@ -298,7 +300,7 @@ fail:
     return 0;
   }
   p->v[v  ].rand_cnt = s_dim_num_nee;
-  p->v[v+1].rand_cnt = s_dim_num_nee;
+  p->v[v+1].rand_cnt = s_dim_num_extend;
   p->length = v+2; // constructed vertex v and v+1
 
   // vertex area pdf of sampling the light source position:
