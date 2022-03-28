@@ -30,6 +30,8 @@ mvnee_possible(const path_t *p, const int v)
   // if there are no non-specular components, fail next event estimation.
   if(!(p->v[v].material_modes & (s_diffuse | s_glossy)))
     return 0;
+  if(v == 0) return 0; // as nee: do not connect light source directly (though we could. should we?)
+  if(v + 2 >= PATHSPACE_MAX_VERTS) return 0; // not enough vertices on list
   // TODO: can we test whether the vertex will potentially be in a volume already?
   // v[v].interior will potentially be inside the other object if we transmit,
   // but we could probably bail out if neither e[v].vol nor v[v].interior have a volume.
