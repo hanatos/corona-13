@@ -40,7 +40,7 @@ int main (int argc, char *arg[])
     primid_t pid;
     pid.shapeid = 0;
     pid.vi = 0;
-    pid.mb = 1;  // motion blur
+    pid.mb = 0;  // motion blur
     pid.vcnt = 1; // sphere
     prims[0] = pid;
 
@@ -50,7 +50,7 @@ int main (int argc, char *arg[])
     shape.vtx[0].v[0] = v0[0];
     shape.vtx[0].v[1] = v0[1];
     shape.vtx[0].v[2] = v0[2];
-    shape.vtx[1].v[0] = v0[0]+2.0f;
+    shape.vtx[1].v[0] = v0[0];
     shape.vtx[1].v[1] = v0[1];
     shape.vtx[1].v[2] = v0[2];
   }
