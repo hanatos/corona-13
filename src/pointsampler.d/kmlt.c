@@ -96,11 +96,11 @@ void pointsampler_print_info(FILE *f)
 
 pointsampler_t *pointsampler_init(uint64_t frame)
 {
-  pointsampler_t *s = (pointsampler_t *)malloc(sizeof(pointsampler_t));
-  s->t = (pointsampler_thr_t *)malloc(sizeof(pointsampler_thr_t)*rt.num_threads);
+  pointsampler_t *s = (pointsampler_t *)common_alloc(256, sizeof(pointsampler_t));
+  s->t = (pointsampler_thr_t *)common_alloc(256, sizeof(pointsampler_thr_t)*rt.num_threads);
   for(int k=0;k<rt.num_threads;k++)
   {
-    s->t[k].rand_buf = (float *)malloc(2*sizeof(float)*POINTSAMPLER_NUM_DIMS);
+    s->t[k].rand_buf = (float *)common_alloc(256, 2*sizeof(float)*POINTSAMPLER_NUM_DIMS);
     memset(s->t[k].rand_buf, 0, 2*sizeof(float)*POINTSAMPLER_NUM_DIMS);
     s->t[k].tent_rand = s->t[k].rand_buf;
     s->t[k].curr_rand = s->t[k].rand_buf + POINTSAMPLER_NUM_DIMS;
