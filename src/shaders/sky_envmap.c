@@ -43,7 +43,6 @@ rgbe_t;
 
 float sky_envmap_sh(const float *const coeff)
 {
-  return coeff[3];// XXX
   const __m128 l4 = _mm_set_ps(400.0f, 480.0f, 560.0f, 660.0f);
   const __m128 eval = _mm_mul_ps(rgb2spec_eval_sse(coeff, l4), _mm_set1_ps(coeff[3]));
   return eval[0]+eval[1]+eval[2]+eval[3];
