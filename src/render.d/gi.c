@@ -37,7 +37,7 @@ static void *clear_tls(void *arg)
 
 render_t *render_init()
 {
-  render_t *r = (render_t *)malloc(sizeof(render_t));
+  render_t *r = (render_t *)common_alloc(256, sizeof(render_t));
   memset(r, 0, sizeof(*r));
   return r;
 }
@@ -49,7 +49,7 @@ void render_cleanup(render_t *r)
 
 render_tls_t *render_tls_init()
 {
-  render_tls_t *r = (render_tls_t *)malloc(sizeof(render_tls_t));
+  render_tls_t *r = (render_tls_t *)common_alloc(256, sizeof(render_tls_t));
   path_init(&r->path0, 0, 0);
   path_init(&r->path1, 0, 0);
   r->curr_path = &r->path0;
