@@ -45,15 +45,16 @@ int main(int argc, char *argv[])
     float t1 = (k+(shutter / 360.0)) / (num_frames - 1.0);
     camera_t curr = cam0;
     quaternion_slerp(&cam0.orient, &cam1.orient, t0, &curr.orient);
-    curr.orient_t1 = curr.orient; // XXX
-    // quaternion_slerp(&cam0.orient_t1, &cam1.orient, t1, &curr.orient);
+    if(shutter == 0) curr.orient_t1 = curr.orient;
+    else quaternion_slerp(&cam0.orient_t1, &cam1.orient, t1, &curr.orient);
     for(int i=0;i<3;i++) curr.pos[i]    = (1.0-t0) * cam0.pos[i] + t0 * cam1.pos[i];
     for(int i=0;i<3;i++) curr.pos_t1[i] = (1.0-t1) * cam0.pos[i] + t1 * cam1.pos[i];
     curr.focus     = (1.0-t0) * cam0.focus     + t0 * cam1.focus;
     curr.focal_length = (1.0-t0) * cam0.focal_length + t0 * cam1.focal_length;
     curr.iso = (1.0-t0) * cam0.iso + t0 * cam1.iso;
-    curr.aperture_value = (1.0-t0) * cam0.aperture_value + t0 * cam1.aperture_value;
-    curr.exposure_value = (1.0-t0) * cam0.exposure_value + t0 * cam1.exposure_value;
+    // results in weird jumps, just like real cameras:
+    // curr.aperture_value = (1.0-t0) * cam0.aperture_value + t0 * cam1.aperture_value;
+    // curr.exposure_value = (1.0-t0) * cam0.exposure_value + t0 * cam1.exposure_value;
     snprintf(filename, 1024, "lerpcam_%04d.cam", k);
     if(camera_write(&curr, filename))
     {
