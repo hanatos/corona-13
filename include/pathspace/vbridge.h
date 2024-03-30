@@ -7,6 +7,22 @@
 
 #include <math.h>
 
+#define HOMO_MU_T 0.01f
+
+static inline int 
+num_verts_sample(const float dist, float *P)
+{
+  float meand = 1.0f/HOMO_MU_T;
+  if(P) P[0] = 1.0f; // deterministic
+  return (int)(dist / meand);
+}
+
+static inline float
+num_verts_P(const float dist, int n)
+{
+  return 1.0f; // deterministic
+}
+
 static inline int
 vbridge_possible(const path_t *p, const int v, const int n)
 {
@@ -78,7 +94,8 @@ vbridge_pdf(
   uint32_t factorial = 1; // (n-1)!
   for(int i=2;i<n;i++) factorial *= i;
   const float s = sqrt(dotproduct(distv, distv));
-  s = G*s*s*s * factorial / powf(sum_d, n);
+  const float P_n = num_verts_P(s, n);
+  s = P_n * G*s*s*s * factorial / powf(sum_d, n);
 
   return mf_mul(res, mf_set1(s));
 }
@@ -96,13 +113,9 @@ vbridge_pdf_adjoint(const path_t *path, int v, int n)
 static inline int
 vbridge_sample(path_t *p)
 {
-  const int n = 2; // XXX TODO sample between 2..something
-  assert(p->length >= n); // at least camera and first hit.
+  assert(p->length >= 2); // at least camera and first hit.
   if(p->v[p->length-1].flags & s_environment) return 1;
-  if(p->length + n > PATHSPACE_MAX_VERTS) return 1; // need to append n new vertices
   const int v = p->length-1; // constructing new vertices starting here
-
-  if(!vbridge_possible(p, v, n)) goto fail;
 
   // sample vertex vn as endpoint (lights or camera)
   int vn = v+1;
@@ -113,8 +126,6 @@ vbridge_sample(path_t *p)
   // constructing x_n here, will move to end of path later
   memset(p->v+vn, 0, sizeof(vertex_t));
   memset(p->e+vn, 0, sizeof(edge_t));
-  // TODO: fix MIS stuff for bridges too
-  // p->v[vn].pdf_mnee = mf_set1(-1.f);
 
   // instruct kelemen mlt to use new random numbers:
   p->v[vn].rand_beg = p->v[v].rand_beg + p->v[v].rand_cnt;
@@ -154,6 +165,14 @@ vbridge_sample(path_t *p)
     for(int k=0;k<3;k++) p->e[vn].omega[k] *= 1./p->e[vn].dist;
   }
 
+  // w_1 on e[v+1] is now inited to point directly to the nee vertex.
+  // vertex_t xn = p->v[vn]; // store target away, we will overwrite it
+  const float to_target_xn[] = {
+    p->v[vn].hit.x[0] - p->v[v].hit.x[0],
+    p->v[vn].hit.x[1] - p->v[v].hit.x[1],
+    p->v[vn].hit.x[2] - p->v[v].hit.x[2]};
+  const float len_target = sqrtf(dotproduct(to_target_xn,to_target_xn));
+
   // ask edf and bsdf for their consent:
   if(!mf_any(mf_gt(edf, mf_set1(0.0f)))) goto fail;
   // compute brdf and throughput (will ignore, just check for specular)
@@ -162,6 +181,10 @@ vbridge_sample(path_t *p)
 
   // determine side of surface and volume from that (brdf sets mode)
   if(path_edge_init_volume(p, vn)) goto fail;
+
+  float P_n = 0.0f;
+  const int n = num_verts_sample(len_target, &P_n);
+  if(p->length + n > PATHSPACE_MAX_VERTS) return 1; // need to append n new vertices
 
   // move vertex vn to end of list, free up space for x_1..x_{n-1}, our in-betweens
   p->e[v+n] = p->e[vn];
@@ -172,19 +195,11 @@ vbridge_sample(path_t *p)
   // get volume properties:
   if(p->e[vn].vol.shader == -1) goto fail; // no volume
 
-  // w_1 on e[v+1] is now inited to point directly to the nee vertex.
-  // vertex_t xn = p->v[vn]; // store target away, we will overwrite it
-  const float to_target_xn[] = {
-    p->v[vn].hit.x[0] - p->v[v].hit.x[0],
-    p->v[vn].hit.x[1] - p->v[v].hit.x[1],
-    p->v[vn].hit.x[2] - p->v[v].hit.x[2]};
-
   // sample distances and phase functions
   for(int i=v+1;i<=n;i++)
   {
     p->length = i; // instruct pointsampler to get new dimensions
-    // TODO: use homogeneous medium scattering code here! use constant parameters
-    shader_vol_sample(p, i); // writes e[i].dist
+    p->e[i].dist = -logf(1.0f-pointsampler(p, s_dim_free_path))/HOMO_MU_T;
     for(int k=0;k<3;k++) // update hit position:
       p->v[i].hit.x[k] = p->v[i-1].x[k] + p->e[i].dist * p->e[i].omega[k];
     p->v[i].rand_beg = p->v[i+1].rand_beg + s_dim_num_extend;
@@ -203,7 +218,6 @@ vbridge_sample(path_t *p)
     p->v[vn].hit.x[0] - p->v[v].hit.x[0],
     p->v[vn].hit.x[1] - p->v[v].hit.x[1],
     p->v[vn].hit.x[2] - p->v[v].hit.x[2]};
-  const float len_target = sqrtf(dotproduct(to_target_xn,to_target_xn));
   const float len_traced = sqrtf(dotproduct(to_trace_xn,to_trace_xn));
   for(int k=0;k<3;k++) to_trace_xn[k] /= len_traced;
   for(int k=0;k<3;k++) to_target_xn[k] /= len_target;
@@ -234,7 +248,6 @@ vbridge_sample(path_t *p)
   }
 
   // compute throughput and pdf
-  mf_t f = path_measurement_contribution_dwp(p, v, vn);
   mf_t f = shader_brdf(p, v); // start vertex
   for(int i=v+1;i<n;i++)
   {
@@ -246,7 +259,7 @@ vbridge_sample(path_t *p)
   uint32_t factorial = 1; // (n-1)!
   for(int i=2;i<n;i++) factorial *= i;
   const float s = len_target;
-  s = s*s*s * factorial / powf(sum_d, n);
+  s = P_n * s*s*s * factorial / powf(sum_d, n);
   mf_t pdf = mf_set1(s);
   p->v[vn].throughput = mf_div(f, pdf);
   p->v[vn].pdf = vbridge_pdf(p, vn, n); // area measure
@@ -273,3 +286,11 @@ fail:
   p->v[vn].total_throughput = p->v[vn].throughput; // store for path_pop()
   return 0;
 }
+
+static inline void
+vbridge_pop(path_t *p, int old_length)
+{
+  p->length = old_length;
+}
+
+#undef HOMO_MU_T
