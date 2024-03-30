@@ -7,6 +7,7 @@
 #include <stdexcept>
 #include <iostream>
 #include <algorithm>
+#include <cstdint>
 
 #include "details/cie1931.h"
 #include "details/lu.h"

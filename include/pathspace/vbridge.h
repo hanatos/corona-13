@@ -46,8 +46,6 @@ vbridge_pdf(
   if(n < 2) return mf_set1(0.0f); // bridge will add at least 2 vertices
   assert(v == 0 || v == p->length-1);
   int v0 = v ? v-n : v+n;  // vertex where next event was sampled from (v==0 means adjoint pdf)
-  int e0 = v ? v-n+1 : n;  // towards double scattering vertex
-  int en = v ? v   : 1;    // towards last point
   int vb = v ? v-n : v;    // for iteration: begin
   int ve = v ? v   : v-n;  // and end indices
   if(!vbridge_possible(p, v0, n)) return mf_set1(0.0f);
@@ -59,9 +57,6 @@ vbridge_pdf(
   lights_pdf_type(p, v0, p_egv);
 
   mf_t res = mf_set1(0.0f);
-  float cos_theta = dotproduct(p->e[e0].omega, p->e[e1].omega);
-  if(cos_theta < 0.0f) return mf_set1(0.0f);
-
   // light tracer connects to camera
   if(((p->v[0].mode & s_emit)>0) ^ (v==0))
     res = view_cam_pdf_connect(p, v);
@@ -93,7 +88,7 @@ vbridge_pdf(
     p->v[ve].hit.x[2] - p->v[vb].hit.x[2]};
   uint32_t factorial = 1; // (n-1)!
   for(int i=2;i<n;i++) factorial *= i;
-  const float s = sqrt(dotproduct(distv, distv));
+  float s = sqrt(dotproduct(distv, distv));
   const float P_n = num_verts_P(s, n);
   s = P_n * G*s*s*s * factorial / powf(sum_d, n);
 
@@ -155,7 +150,6 @@ vbridge_sample(path_t *p)
   else if(mf(p_egv[2],0) > 0)
   { // connect to volume lights
     edf = light_volume_sample_nee(p, v);
-    if(!mf_any(mf_gt(edf, mf_set1(.0f)))) goto fail;
     p->v[vn].pdf = mf_mul(p->v[vn].pdf, p_egv[2]);
     edf = mf_div(edf, mf_set1(mf(p_egv[2],0)));
     // init segment
@@ -167,11 +161,15 @@ vbridge_sample(path_t *p)
 
   // w_1 on e[v+1] is now inited to point directly to the nee vertex.
   // vertex_t xn = p->v[vn]; // store target away, we will overwrite it
-  const float to_target_xn[] = {
+  float to_target_xn[] = {
     p->v[vn].hit.x[0] - p->v[v].hit.x[0],
     p->v[vn].hit.x[1] - p->v[v].hit.x[1],
     p->v[vn].hit.x[2] - p->v[v].hit.x[2]};
   const float len_target = sqrtf(dotproduct(to_target_xn,to_target_xn));
+
+  float P_n = 0.0f;
+  const int n = num_verts_sample(len_target, &P_n);
+  if(p->length + n > PATHSPACE_MAX_VERTS) return 1; // need to append n new vertices
 
   // ask edf and bsdf for their consent:
   if(!mf_any(mf_gt(edf, mf_set1(0.0f)))) goto fail;
@@ -181,10 +179,6 @@ vbridge_sample(path_t *p)
 
   // determine side of surface and volume from that (brdf sets mode)
   if(path_edge_init_volume(p, vn)) goto fail;
-
-  float P_n = 0.0f;
-  const int n = num_verts_sample(len_target, &P_n);
-  if(p->length + n > PATHSPACE_MAX_VERTS) return 1; // need to append n new vertices
 
   // move vertex vn to end of list, free up space for x_1..x_{n-1}, our in-betweens
   p->e[v+n] = p->e[vn];
@@ -201,7 +195,7 @@ vbridge_sample(path_t *p)
     p->length = i; // instruct pointsampler to get new dimensions
     p->e[i].dist = -logf(1.0f-pointsampler(p, s_dim_free_path))/HOMO_MU_T;
     for(int k=0;k<3;k++) // update hit position:
-      p->v[i].hit.x[k] = p->v[i-1].x[k] + p->e[i].dist * p->e[i].omega[k];
+      p->v[i].hit.x[k] = p->v[i-1].hit.x[k] + p->e[i].dist * p->e[i].omega[k];
     p->v[i].rand_beg = p->v[i+1].rand_beg + s_dim_num_extend;
     shader_prepare(p, i);
     p->length = i+1;
@@ -214,7 +208,7 @@ vbridge_sample(path_t *p)
   }
   
   // setup quaternion rotation
-  const float to_trace_xn[] = {
+  float to_trace_xn[] = {
     p->v[vn].hit.x[0] - p->v[v].hit.x[0],
     p->v[vn].hit.x[1] - p->v[v].hit.x[1],
     p->v[vn].hit.x[2] - p->v[v].hit.x[2]};
@@ -237,7 +231,7 @@ vbridge_sample(path_t *p)
       p->v[i].hit.x[0] - p->v[v].hit.x[0],
       p->v[i].hit.x[1] - p->v[v].hit.x[1],
       p->v[i].hit.x[2] - p->v[v].hit.x[2]};
-    quaternion_transform(&q, &x);
+    quaternion_transform(&q, x);
     for(int k=0;k<3;k++) p->v[i].hit.x[k] = 
       p->v[v].hit.x[k] + len_target/len_traced * x[k];
     // adjust edge
@@ -252,13 +246,13 @@ vbridge_sample(path_t *p)
   for(int i=v+1;i<n;i++)
   {
     f = mf_mul(f, shader_vol_transmittance(p, i));
-    f = mf_mul(f, path->v[i].vol.mu_s);// XXX ???
+    f = mf_mul(f, p->v[i].interior.mu_s);// XXX ???
   }
-  f = mf_mul(f, shader_vol_transmittance(p, nv));
+  f = mf_mul(f, shader_vol_transmittance(p, vn));
   f = mf_mul(f, lights_eval_vertex(p, vn)); // end vertex
   uint32_t factorial = 1; // (n-1)!
   for(int i=2;i<n;i++) factorial *= i;
-  const float s = len_target;
+  float s = len_target;
   s = P_n * s*s*s * factorial / powf(sum_d, n);
   mf_t pdf = mf_set1(s);
   p->v[vn].throughput = mf_div(f, pdf);
@@ -282,8 +276,6 @@ fail:
   for(int i=1;i<=n;i++)
     p->v[v+i].rand_cnt = s_dim_num_extend;
   p->length = v+n+1;
-
-  p->v[vn].total_throughput = p->v[vn].throughput; // store for path_pop()
   return 0;
 }
 

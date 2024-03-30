@@ -1,5 +1,3 @@
-#pragma once
-
 #include "pathspace.h"
 #include "pathspace/vbridge.h"
 #include "pointsampler.h"
