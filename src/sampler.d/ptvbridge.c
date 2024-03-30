@@ -24,7 +24,8 @@ void sampler_cleanup(sampler_t *s)
 void sampler_prepare_frame(sampler_t *s) {}
 void sampler_clear(sampler_t *s) { }
 
-static inline float sampler_mis(path_t *path)
+static inline float
+sampler_mis(path_t *path)
 {
   double pdf2 = 0.0f;
   double pdf_pt = 1.0f;
@@ -34,7 +35,7 @@ static inline float sampler_mis(path_t *path)
     double pdf = 0.0f;
     double pdf_vb = 0.0f;
     if(k >= 1 && k < path->length-1)
-      pdf_vb = vbridge_pdf(path, k+1, path->length-k); // TODO: check arguments
+      pdf_vb = vbridge_pdf(path, path->length-1, path->length-k-1);
     pdf = pdf_pt * pdf_vb;
     pdf2 += pdf*pdf;
   }

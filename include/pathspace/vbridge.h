@@ -75,7 +75,7 @@ vbridge_pdf(
   // res is now the vertex area pdf of sampling the light source position v[v]
 
   // now compute pdf of the rest:
-  // we assume fixed n, multiply P_n from outside
+  // n is fixed, multiply P_n from outside
   // multiply all inner phase function pdf:
   float sum_d = 0.0f;
   float G = 1.0f;
