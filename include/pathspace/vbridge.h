@@ -4,25 +4,50 @@
 #include "shader.h"
 #include "lights.h"
 #include "view.h"
+#include "points.h"
 
 #include <math.h>
 
 // TODO: remove this and use interior of first vertex instead
 #define HOMO_MU_T 2.0f
 
+static float num_verts_P(const float dist, int n);
 static inline int 
 num_verts_sample(const float dist, float *P)
 {
-  float meand = 1.0f/HOMO_MU_T;
+#if 1
   if(P) P[0] = 1.0f; // deterministic
+  return 3;// XXX
+  float meand = 1.0f/HOMO_MU_T;
   return (int)(dist / meand);
+#else
+  // poisson
+  float T = 0.0f;
+  int n = -1;
+  const float l = HOMO_MU_T * dist;
+  while(T <= 1.0f)
+  {
+    float xi = points_rand(rt.points, common_get_threadid());
+    T -= log(1.0f-xi)/l;
+    n++;
+  }
+  if(P) P[0] = num_verts_P(dist, n);
+  return n;
+#endif
 }
 
 static inline float
 num_verts_P(const float dist, int n)
 {
+#if 1
   if(num_verts_sample(dist, 0) != n) return 0.0f;
   return 1.0f; // deterministic
+#else
+  const float l = HOMO_MU_T * dist;
+  uint32_t fac = 1; // n!
+  for(int i=2;i<=n;i++) fac *= i;
+  return powf(l, n) * expf(-l) / fac;
+#endif
 }
 
 static inline int
@@ -44,6 +69,7 @@ vbridge_pdf(
     int v,           // the index of the light vertex x_n
     int n)           // the length of the bridge from x_0..x_n
 {
+  return mf_set1(1.0f); // XXX DEBUG
   if(p->length < 3) return mf_set1(0.0f); // no next event for 2-vertex paths.
   if(n < 2) return mf_set1(0.0f); // bridge will add at least 2 vertices
   // assert(v == 0 || v == p->length-1);
@@ -172,6 +198,7 @@ vbridge_sample(path_t *p)
 
   float P_n = 0.0f;
   const int n = num_verts_sample(len_target, &P_n);
+  if(n < 2) return 1;
   if(p->length + n > PATHSPACE_MAX_VERTS) return 1; // need to append n new vertices
 
   // ask edf and bsdf for their consent:
@@ -242,6 +269,7 @@ vbridge_sample(path_t *p)
     p->e[i].dist *= len_target/len_traced;
     p->v[i].pdf = mf_set1(1.0f); // will include it all in the last vertex
     sum_d += p->e[i].dist;
+    // TODO: check visibility
   }
 
   // compute throughput and pdf
@@ -249,14 +277,17 @@ vbridge_sample(path_t *p)
   for(int i=v+1;i<n;i++)
   {
     f = mf_mul(f, shader_vol_transmittance(p, i));
-    f = mf_mul(f, p->v[i].interior.mu_s);// XXX ???
+    f = mf_mul(f, p->v[i].interior.mu_s);
   }
   f = mf_mul(f, shader_vol_transmittance(p, vn));
   f = mf_mul(f, lights_eval_vertex(p, vn)); // end vertex
-  uint32_t factorial = 1; // (n-1)!
-  for(int i=2;i<n;i++) factorial *= i;
+  // uint32_t factorial = 1; // (n-1)!
+  // for(int i=2;i<n;i++) factorial *= i;
+  // hope for better precision if we don't blow number range up so much:
+  double fac = 1.0/(sum_d * sum_d);
+  for(int i=2;i<n;i++) fac *= i/sum_d;
   float s = len_target;
-  s = P_n * s*s*s * factorial / powf(sum_d, n);
+  s = P_n * s*s*s * fac; // factorial / powf(sum_d, n);
   mf_t pdf = mf_set1(s);
   p->v[vn].throughput = mf_div(f, pdf);
   p->length = vn+1;
@@ -276,7 +307,8 @@ fail:
     p->v[vn] = p->v[v];
     // add enough to be popped off
     p->length = v+n+1; // constructed vertices (even if they absorb)
-    return 0;
+    p->throughput = mf_set1(0.0);
+    return 1;
   }
   p->throughput = p->v[vn].throughput;
   return 0;
