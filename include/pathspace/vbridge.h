@@ -21,6 +21,7 @@ num_verts_sample(const float dist, float *P)
 static inline float
 num_verts_P(const float dist, int n)
 {
+  if(num_verts_sample(dist, 0) != n) return 0.0f;
   return 1.0f; // deterministic
 }
 
@@ -277,12 +278,14 @@ fail:
     p->length = v+n+1; // constructed vertices (even if they absorb)
     return 0;
   }
+  p->throughput = p->v[vn].throughput;
   return 0;
 }
 
 static inline void
 vbridge_pop(path_t *p, int old_length)
 {
+  p->throughput = mf_set1(0.0f);
   p->length = old_length;
 }
 
