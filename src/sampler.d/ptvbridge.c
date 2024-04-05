@@ -22,24 +22,24 @@ void sampler_cleanup(sampler_t *s)
 void sampler_prepare_frame(sampler_t *s) {}
 void sampler_clear(sampler_t *s) { }
 
-static inline float
+static inline mf_t
 sampler_mis(path_t *path)
 {
-  double pdf2 = 0.0f;
-  double pdf_pt = 1.0f;
+  md_t pdf2 = md_set1(0.0);
+  md_t pdf_pt = md_set1(1.0);
   for(int k=0;k<path->length;k++)
   {
-    pdf_pt *= path_pdf_extend(path, k);
-    double pdf = 0.0f;
-    double pdf_vb = 0.0f;
+    pdf_pt = md_mul(pdf_pt, mf_2d(path_pdf_extend(path, k)));
+    md_t pdf = md_set1(0.0);
+    md_t pdf_vb = md_set1(0.0);
     if(k >= 1 && k < path->length-1)
-      pdf_vb = vbridge_pdf(path, path->length-1, path->length-k-1);
-    pdf = pdf_pt * pdf_vb;
-    pdf2 += pdf*pdf;
+      pdf_vb = mf_2d(vbridge_pdf(path, path->length-1, path->length-k-1));
+    pdf = md_mul(pdf_pt, pdf_vb);
+    pdf2 = md_add(pdf2, md_mul(pdf,pdf));
   }
-  pdf2 += pdf_pt * pdf_pt;
-  double pdf = path_pdf(path);
-  double w = (pdf*pdf)/pdf2;
+  pdf2 = md_add(pdf2, md_mul(pdf_pt, pdf_pt));
+  md_t pdf = path_pdf(path);
+  mf_t w = md_2f(md_div(md_mul(pdf,pdf), pdf2));
   return w;
 }
 

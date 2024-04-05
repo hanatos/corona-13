@@ -237,7 +237,7 @@ vbridge_sample(path_t *p)
     // adjust edge
     quaternion_transform(&q, p->e[i].omega);
     p->e[i].dist *= len_target/len_traced;
-    p->v[i].pdf = 1.0f; // will include it all in the last vertex
+    p->v[i].pdf = mf_set1(1.0f); // will include it all in the last vertex
     sum_d += p->e[i].dist;
   }
 
