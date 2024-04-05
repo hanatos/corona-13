@@ -25,22 +25,21 @@ void sampler_clear(sampler_t *s) { }
 static inline mf_t
 sampler_mis(path_t *path)
 {
-  md_t pdf2 = md_set1(0.0);
-  md_t pdf_pt = md_set1(1.0);
+  md_t our = path_pdf(path);
+  md_t sum = md_set1(0.0);
+  md_t pdf_prefix = md_set1(1.0);
   for(int k=0;k<path->length;k++)
   {
-    pdf_pt = md_mul(pdf_pt, mf_2d(path_pdf_extend(path, k)));
-    md_t pdf = md_set1(0.0);
+    pdf_prefix = md_mul(pdf_prefix, mf_2d(path_pdf_extend(path, k)));
     md_t pdf_vb = md_set1(0.0);
     if(k >= 1 && k < path->length-1)
       pdf_vb = mf_2d(vbridge_pdf(path, path->length-1, path->length-k-1));
-    pdf = md_mul(pdf_pt, pdf_vb);
-    pdf2 = md_add(pdf2, md_mul(pdf,pdf));
+    md_t pdf = md_mul(pdf_prefix, pdf_vb);
+    sum = md_add(sum, pdf);
+    if(k == path->length-1)
+      sum = md_add(sum, pdf_prefix); // plain pt technique
   }
-  pdf2 = md_add(pdf2, md_mul(pdf_pt, pdf_pt));
-  md_t pdf = path_pdf(path);
-  mf_t w = md_2f(md_div(md_mul(pdf,pdf), pdf2));
-  return w;
+  return mf_div(md_2f(our), mf_set1(mf_hsum(md_2f(sum))));
 }
 
 void sampler_create_path(path_t *path)
