@@ -68,5 +68,5 @@ void sampler_create_path(path_t *path)
 
 void sampler_print_info(FILE *fd)
 {
-  fprintf(fd, "sampler  : pathtracer with verter bridges\n");
+  fprintf(fd, "sampler  : pathtracer with vertex bridges\n");
 }

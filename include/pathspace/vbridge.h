@@ -7,7 +7,8 @@
 
 #include <math.h>
 
-#define HOMO_MU_T 0.01f
+// TODO: remove this and use interior of first vertex instead
+#define HOMO_MU_T 2.0f
 
 static inline int 
 num_verts_sample(const float dist, float *P)
@@ -44,7 +45,8 @@ vbridge_pdf(
 {
   if(p->length < 3) return mf_set1(0.0f); // no next event for 2-vertex paths.
   if(n < 2) return mf_set1(0.0f); // bridge will add at least 2 vertices
-  assert(v == 0 || v == p->length-1);
+  // assert(v == 0 || v == p->length-1);
+  if(!(v == 0 || v == p->length-1)) return mf_set1(0.0f);
   int v0 = v ? v-n : v+n;  // vertex where next event was sampled from (v==0 means adjoint pdf)
   int vb = v ? v-n : v;    // for iteration: begin
   int ve = v ? v   : v-n;  // and end indices
@@ -256,7 +258,10 @@ vbridge_sample(path_t *p)
   s = P_n * s*s*s * factorial / powf(sum_d, n);
   mf_t pdf = mf_set1(s);
   p->v[vn].throughput = mf_div(f, pdf);
+  p->length = vn+1;
   p->v[vn].pdf = vbridge_pdf(p, vn, n); // area measure
+  p->v[v].rand_cnt = s_dim_num_nee;
+  for(int i=1;i<=n;i++) p->v[v+i].rand_cnt = s_dim_num_extend;
 
   if(0)
   {
@@ -272,10 +277,6 @@ fail:
     p->length = v+n+1; // constructed vertices (even if they absorb)
     return 0;
   }
-  p->v[v].rand_cnt = s_dim_num_nee;
-  for(int i=1;i<=n;i++)
-    p->v[v+i].rand_cnt = s_dim_num_extend;
-  p->length = v+n+1;
   return 0;
 }
 
