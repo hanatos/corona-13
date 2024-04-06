@@ -8,13 +8,9 @@
 
 #include <math.h>
 
-// TODO: remove this and use volume of first edge instead
-// our scene file has mean free dist = 2dm, so mu_t = 0.5
-#define HOMO_MU_T 0.5f
-
-static float num_verts_P(const float dist, int n);
+static mf_t num_verts_P(const float dist, const mf_t mu_t, int n);
 static inline int 
-num_verts_sample(const float dist, float *P)
+num_verts_sample(const float dist, const mf_t mu_t, mf_t *P)
 {
 #if 0
   if(P) P[0] = 1.0f; // deterministic
@@ -25,29 +21,43 @@ num_verts_sample(const float dist, float *P)
   // poisson
   float T = 0.0f;
   int n = -1;
-  const float l = HOMO_MU_T * dist;
+  const float l = mf(mu_t, 0) * dist;
   while(T <= 1.0f)
   {
     float xi = points_rand(rt.points, common_get_threadid());
     T -= log(1.0f-xi)/l;
     n++;
   }
-  if(P) P[0] = num_verts_P(dist, n);
+  if(P) P[0] = num_verts_P(dist, mu_t, n);
   return n;
 #endif
 }
 
-static inline float
-num_verts_P(const float dist, int n)
+static inline mf_t
+num_verts_P(const float dist, const mf_t mu_t, int n)
 {
 #if 0
   if(num_verts_sample(dist, 0) != n) return 0.0f;
   return 1.0f; // deterministic
 #else
-  const float l = HOMO_MU_T * dist;
+  const mf_t l = mf_mul(mu_t, mf_set1(dist));
   uint32_t fac = 1; // n!
   for(int i=2;i<=n;i++) fac *= i;
-  return powf(l, n) * expf(-l) / fac;
+  float res[MF_COUNT];
+  // sucks, but clang is unhappy about non-const indexing in a loop
+  res[0] = powf(mf(l, 0), n) * expf(-mf(l, 0)) / fac;
+#if MF_COUNT > 1
+  res[1] = powf(mf(l, 1), n) * expf(-mf(l, 1)) / fac;
+  res[2] = powf(mf(l, 2), n) * expf(-mf(l, 2)) / fac;
+  res[3] = powf(mf(l, 3), n) * expf(-mf(l, 3)) / fac;
+#if MF_COUNT > 4
+  res[4] = powf(mf(l, 4), n) * expf(-mf(l, 4)) / fac;
+  res[5] = powf(mf(l, 5), n) * expf(-mf(l, 5)) / fac;
+  res[6] = powf(mf(l, 6), n) * expf(-mf(l, 6)) / fac;
+  res[7] = powf(mf(l, 7), n) * expf(-mf(l, 7)) / fac;
+#endif
+#endif
+  return mf_loadu(res);
 #endif
 }
 
@@ -118,10 +128,10 @@ vbridge_pdf(
   double factorial = 1; // (n-1)!
   for(int i=2;i<n;i++) factorial *= i;
   double s = sqrt(dotproduct(distv, distv));
-  const double P_n = num_verts_P(s, n);
-  s = P_n * G*s*s*s * factorial / pow(sum_d, n);
+  const mf_t P_n = num_verts_P(s, p->v[vb].interior.mu_t, n);
+  s = G*s*s*s * factorial / pow(sum_d, n);
 
-  return mf_mul(res, mf_set1(s));
+  return mf_mul(res, mf_mul(P_n, mf_set1(s)));
 }
 
 // return on-surface pdf of vertex v if it had been sampled the other way around via
@@ -195,8 +205,8 @@ vbridge_sample(path_t *p)
     p->v[vn].hit.x[2] - p->v[v].hit.x[2]};
   const float len_target = sqrtf(dotproduct(to_target_xn,to_target_xn));
 
-  float P_n = 0.0f;
-  const int n = num_verts_sample(len_target, &P_n);
+  mf_t P_n = mf_set1(0.0f);
+  const int n = num_verts_sample(len_target, p->v[v].interior.mu_t, &P_n);
   // fprintf(stderr, " v %d n %d vn %d\n", v, n, vn);
   if(n < 2) return 1;
   if(p->length + n > PATHSPACE_MAX_VERTS) return 1; // need to append n new vertices
@@ -230,7 +240,7 @@ vbridge_sample(path_t *p)
   for(int i=v+1;i<=vn;i++)
   {
     p->length = i; // instruct pointsampler to get new dimensions
-    p->e[i].dist = -logf(1.0f-pointsampler(p, s_dim_free_path));// /HOMO_MU_T; // cancels anyways
+    p->e[i].dist = -logf(1.0f-pointsampler(p, s_dim_free_path));// mu_t cancels anyways
     for(int k=0;k<3;k++) // update hit position:
       p->v[i].hit.x[k] = p->v[i-1].hit.x[k] + p->e[i].dist * p->e[i].omega[k];
     if(i < vn)
@@ -293,9 +303,9 @@ vbridge_sample(path_t *p)
   double fac = 1.0/(sum_d * sum_d);
   for(int i=2;i<n;i++) fac *= i/sum_d;
   double s = len_target;
-  s = P_n * s*s*s * fac; // factorial / powf(sum_d, n);
+  s = s*s*s * fac; // factorial / powf(sum_d, n);
   // fprintf(stderr, "pdf len %g, P_n %g, sum_d %g, fac %g\n", len_target, P_n, sum_d, fac);
-  md_t pdf = md_set1(s);
+  md_t pdf = md_mul(mf_2d(P_n), md_set1(s));
 
   md_t f = mf_2d(shader_brdf(p, v)); // start vertex
   for(int i=v+1;i<v+n;i++)
