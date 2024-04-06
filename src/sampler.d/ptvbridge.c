@@ -25,6 +25,7 @@ void sampler_clear(sampler_t *s) { }
 static inline mf_t
 sampler_mis(path_t *path)
 {
+  // return mf_set1(1);
   md_t our = path_pdf(path);
   md_t sum = md_set1(0.0);
   md_t pdf_prefix = md_set1(1.0);
@@ -36,8 +37,7 @@ sampler_mis(path_t *path)
       pdf_vb = mf_2d(vbridge_pdf(path, path->length-1, path->length-k-1));
     md_t pdf = md_mul(pdf_prefix, pdf_vb);
     sum = md_add(sum, pdf);
-    if(k == path->length-1)
-      sum = md_add(sum, pdf_prefix); // plain pt technique
+    if(k == path->length-1) sum = md_add(sum, pdf_prefix); // plain pt technique
   }
   return mf_div(md_2f(our), mf_set1(mf_hsum(md_2f(sum))));
 }
@@ -50,7 +50,7 @@ void sampler_create_path(path_t *path)
     const int v = path->length-1;
     if(path->v[v].mode & s_emit)
     {
-      pointsampler_splat(path, path_throughput(path) * sampler_mis(path));
+      // pointsampler_splat(path, path_throughput(path) * sampler_mis(path));
 #if 0
       if(path->length > 3)
         if(path_russian_roulette(path, fminf(1.0, path->v[path->length-1].throughput/path->v[path->length-2].throughput)))

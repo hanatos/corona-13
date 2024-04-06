@@ -9,7 +9,8 @@
 #include <math.h>
 
 // TODO: remove this and use volume of first edge instead
-#define HOMO_MU_T 2.0f
+// our scene file has mean free dist = 2dm, so mu_t = 0.5
+#define HOMO_MU_T 0.5f
 
 static float num_verts_P(const float dist, int n);
 static inline int 
@@ -97,11 +98,10 @@ vbridge_pdf(
   else return mf_set1(0.0f);
   // res is now the vertex area pdf of sampling the light source position v[v]
 
-  return mf_set1(1.0f); // XXX DEBUG
   // now compute pdf of the rest:
   // n is fixed, multiply P_n from outside
   // multiply all inner phase function pdf:
-  float sum_d = 0.0f;
+  double sum_d = 0.0;
   double G = 1.0;
   for(int i=vb+1;i<ve;i++)
   {
@@ -118,8 +118,8 @@ vbridge_pdf(
   double factorial = 1; // (n-1)!
   for(int i=2;i<n;i++) factorial *= i;
   double s = sqrt(dotproduct(distv, distv));
-  const float P_n = num_verts_P(s, n);
-  s = P_n * G*s*s*s * factorial / powf(sum_d, n);
+  const double P_n = num_verts_P(s, n);
+  s = P_n * G*s*s*s * factorial / pow(sum_d, n);
 
   return mf_mul(res, mf_set1(s));
 }
@@ -233,8 +233,11 @@ vbridge_sample(path_t *p)
     p->e[i].dist = -logf(1.0f-pointsampler(p, s_dim_free_path));// /HOMO_MU_T; // cancels anyways
     for(int k=0;k<3;k++) // update hit position:
       p->v[i].hit.x[k] = p->v[i-1].hit.x[k] + p->e[i].dist * p->e[i].omega[k];
-    p->v[i].hit.prim = INVALID_PRIMID;
-    p->v[i].hit.shader = p->e[i].vol.shader;
+    if(i < vn)
+    {
+      p->v[i].hit.prim = INVALID_PRIMID;
+      p->v[i].hit.shader = p->e[i].vol.shader;
+    }
     p->v[i].rand_beg = p->v[i-1].rand_beg + s_dim_num_extend;
     shader_prepare(p, i);
     p->length = i+1;
@@ -303,8 +306,8 @@ vbridge_sample(path_t *p)
   }
   f = md_mul(f, mf_2d(shader_vol_transmittance(p, vn)));
   f = md_mul(f, mf_2d(lights_eval_vertex(p, vn))); // end vertex
-  f = md_set1(1);
-  pdf = md_set1(1);
+  // f = md_set1(1);
+  // pdf = md_set1(1);
   p->v[vn].throughput = md_2f(md_div(f, pdf));
   p->length = vn+1;
   p->v[vn].pdf = vbridge_pdf(p, vn, n); // area measure
