@@ -205,6 +205,7 @@ vbridge_sample(path_t *p)
     p->v[vn].hit.x[2] - p->v[v].hit.x[2]};
   const float len_target = sqrtf(dotproduct(to_target_xn,to_target_xn));
 
+  mf_t nee_pdf = p->v[vn].pdf; // store away nee pdf
   mf_t P_n = mf_set1(0.0f);
   const int n = num_verts_sample(len_target, p->v[v].interior.mu_t, &P_n);
   // fprintf(stderr, " v %d n %d vn %d\n", v, n, vn);
@@ -234,6 +235,7 @@ vbridge_sample(path_t *p)
   p->v[v+n].rand_beg = p->v[v].rand_beg + s_dim_num_nee;
   vn = v+n; // now the index is pointing to the vertex at the correct position
 
+  // fprintf(stderr, "last vertex 0 %g %g %g\n", p->v[vn].hit.x[0], p->v[vn].hit.x[1], p->v[vn].hit.x[2]);
   // get volume properties:
   if(p->e[vn].vol.shader == -1) goto fail; // no volume
 
@@ -290,21 +292,29 @@ vbridge_sample(path_t *p)
     for(int k=0;k<3;k++) p->v[i].hit.x[k] = 
       p->v[v].hit.x[k] + len_target/len_traced * x[k];
     // adjust edge
+    // for(int k=0;k<3;k++) p->e[i].omega[k] = p->v[i].hit.x[k] - p->v[i-1].hit.x[k];
+    // normalise(p->e[i].omega);
     quaternion_transform(&q, p->e[i].omega);
     p->e[i].dist *= len_target/len_traced;
     p->v[i].pdf = mf_set1(1.0f); // will include it all in the last vertex
     sum_d += p->e[i].dist;
     if(!path_visible(p, i)) goto fail;
   }
+  // fprintf(stderr, "last vertex 1 %g %g %g\n", p->v[vn].hit.x[0], p->v[vn].hit.x[1], p->v[vn].hit.x[2]);
 
   // compute throughput and pdf
-  // uint32_t factorial = 1; // (n-1)!
-  // for(int i=2;i<n;i++) factorial *= i;
+#if 1
+  double factorial = 1; // (n-1)!
+  for(int i=2;i<n;i++) factorial *= i;
+  double s = len_target;
+  s = s*s*s * factorial / powf(sum_d, n);
+#else
   // hope for better precision if we don't blow number range up so much:
   double fac = 1.0/(sum_d * sum_d);
   for(int i=2;i<n;i++) fac *= i/sum_d;
   double s = len_target;
   s = s*s*s * fac; // factorial / powf(sum_d, n);
+#endif
   // fprintf(stderr, "pdf len %g, P_n %g, sum_d %g, fac %g\n", len_target, P_n, sum_d, fac);
   md_t pdf = md_mul(mf_2d(P_n), md_set1(s));
 
@@ -312,16 +322,27 @@ vbridge_sample(path_t *p)
   for(int i=v+1;i<v+n;i++)
   {
   // fprintf(stderr, "i %d len %d, f %g, pdf %g\n", i, vn+1, md(f, 0), md(pdf, 0));
+    p->e[i].transmittance = mf_set1(0.0f);
     f = md_mul(f, mf_2d(shader_vol_transmittance(p, i)));
     f = md_mul(f, mf_2d(p->v[i].interior.mu_s));
+    // f = md_mul(f, md_set1(path_G(p, i)));
   }
+  // f = md_mul(f, md_set1(path_G(p, vn)));
+  p->e[vn].transmittance = mf_set1(0.0f);
   f = md_mul(f, mf_2d(shader_vol_transmittance(p, vn)));
   f = md_mul(f, mf_2d(lights_eval_vertex(p, vn))); // end vertex
   // f = md_set1(1);
   // pdf = md_set1(1);
+  // pdf = mf_2d(vbridge_pdf(p, vn, n)); // XXX DEBUG with G terms this blows up completely
+  pdf = md_mul(pdf, mf_2d(nee_pdf));
+
   p->v[vn].throughput = md_2f(md_div(f, pdf));
   p->length = vn+1;
   p->v[vn].pdf = vbridge_pdf(p, vn, n); // area measure
+  // XXX DEBUG: does not work:
+  // path_print(p, stderr);
+  // fprintf(stderr, "f %g p %g\n", md(path_measurement_contribution_dx(p, v, vn), 0), mf(p->v[vn].pdf, 0));
+  // p->v[vn].throughput = md_2f(md_div(path_measurement_contribution_dx(p, v, vn), mf_2d(p->v[vn].pdf)));
   p->v[v].rand_cnt = s_dim_num_nee;
   for(int i=1;i<=n;i++) p->v[v+i].rand_cnt = s_dim_num_extend;
 
@@ -340,8 +361,8 @@ fail:
     p->throughput = mf_set1(0.0);
     return 1;
   }
-  p->v[v].total_throughput = p->v[v].throughput;
-  p->throughput = p->v[v].throughput * p->v[vn].throughput;
+  // p->v[v].total_throughput = p->v[v].throughput;
+  p->throughput = mf_mul(p->v[v].throughput, p->v[vn].throughput);
   return 0;
 }
 
@@ -349,6 +370,6 @@ static inline void
 vbridge_pop(path_t *p, int old_length)
 {
   p->throughput = mf_set1(0.0);
-  p->v[old_length].throughput = p->v[old_length].total_throughput;
+  // p->v[old_length].throughput = p->v[old_length].total_throughput;
   p->length = old_length;
 }

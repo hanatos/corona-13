@@ -66,6 +66,13 @@ float path_G(const path_t *p, int e)
     (p->e[e].dist * p->e[e].dist);
 }
 
+static inline mf_t
+path_Gm(const path_t *p, int e)
+{
+  const float G = path_G(p, e); // avoid calling multiple times
+  return mf_set1(G);
+}
+
 // return the vertex number of the vertex with the interior that describes the
 // volume of the requested edge e. if eta_ratio is set, assume transmit on v=e-1.
 static inline int _path_edge_medium(const path_t *path, int e, int eta_ratio)
@@ -250,7 +257,7 @@ int path_extend(path_t *path)
   }
 
   // transform probability to on-surface probability at vertex v
-  path->v[v].pdf = mf_mul(path->v[v].pdf, mf_set1(path_G(path, v)));
+  path->v[v].pdf = mf_mul(path->v[v].pdf, path_Gm(path, v));
   path->length++; // now a valid vertex
 
   path_update_throughput(path, v);
@@ -387,7 +394,7 @@ mf_t path_pdf_extend(const path_t *path, int v)
     pdf = shader_pdf(path, v-1);
   // account for volume probabilities:
   mf_t vol_pdf = shader_vol_pdf(path, v);
-  return mf_mul(mf_mul(vol_pdf, pdf), mf_set1(path_G(path, v)));
+  return mf_mul(mf_mul(vol_pdf, pdf), path_Gm(path, v));
 }
 
 // return on-surface pdf of vertex v if it had been sampled the other way around via
@@ -427,7 +434,7 @@ mf_t path_pdf_extend_adjoint(const path_t *path, int v)
   // account for volume probabilities:
   pdf = mf_mul(pdf, shader_vol_pdf_adjoint(path, v+1));
   // convert to vertex area of vertex after shooting the ray
-  return mf_mul(pdf, mf_set1(path_G(path, v+1)));
+  return mf_mul(pdf, path_Gm(path, v+1));
 }
 
 void path_reverse(path_t *path, const path_t *input)
@@ -558,7 +565,7 @@ mf_t path_connect(path_t *path1, const path_t *path2)
   }
 
   // evaluate throughput
-  const mf_t connect = mf_mul(mf_mul(mf_mul(vol, mf_set1(path_G(path1, v))), bsdf1), bsdf2);
+  const mf_t connect = mf_mul(mf_mul(mf_mul(vol, path_Gm(path1, v)), bsdf1), bsdf2);
   const mf_t throughput = mf_mul(mf_mul(path1->v[v-1].throughput, connect), path2->v[path2->length-1].throughput);
   path1->length += path2->length; // mark edges and vertices as inited and in this path
   path1->throughput = throughput;
