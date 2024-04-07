@@ -113,9 +113,9 @@ vbridge_pdf(
   // multiply all inner phase function pdf:
   double sum_d = 0.0;
   double G = 1.0;
-  for(int i=vb+1;i<ve;i++)
+  for(int i=vb+1;i<=ve;i++)
   {
-    res = mf_mul(res, shader_pdf(p, i));
+    if(i<ve) res = mf_mul(res, shader_pdf(p, i));
     sum_d += p->e[i].dist;
     G *= path_G(p, i);
   }
@@ -129,7 +129,7 @@ vbridge_pdf(
   for(int i=2;i<n;i++) factorial *= i;
   double s = sqrt(dotproduct(distv, distv));
   const mf_t P_n = num_verts_P(s, p->v[vb].interior.mu_t, n);
-  s = M_PI*G*s*s*s * factorial / pow(sum_d, n);
+  s = G*s*s*s * factorial / pow(sum_d, n);
 
   return mf_mul(res, mf_mul(P_n, mf_set1(s)));
 }
@@ -304,7 +304,7 @@ vbridge_sample(path_t *p)
   double fac = 1.0/(sum_d * sum_d);
   for(int i=2;i<n;i++) fac *= i/sum_d;
   double s = len_target;
-  s = M_PI*s*s*s * fac; // factorial / powf(sum_d, n);
+  s = s*s*s * fac; // factorial / powf(sum_d, n);
   // fprintf(stderr, "pdf len %g, P_n %g, sum_d %g, fac %g\n", len_target, P_n, sum_d, fac);
   md_t pdf = md_mul(mf_2d(P_n), md_set1(s));
 
