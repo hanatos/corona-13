@@ -80,7 +80,7 @@ vbridge_pdf(
     int v,           // the index of the light vertex x_n
     int n)           // the length of the bridge from x_0..x_n
 {
-  if(p->length < 3) return mf_set1(0.0f); // no next event for 2-vertex paths.
+  if(p->length < 4) return mf_set1(0.0f); // no next event for 2-vertex paths.
   if(n < 2) return mf_set1(0.0f); // bridge will add at least 2 vertices
   // assert(v == 0 || v == p->length-1);
   if(!(v == 0 || v == p->length-1)) return mf_set1(0.0f);
@@ -129,7 +129,7 @@ vbridge_pdf(
   for(int i=2;i<n;i++) factorial *= i;
   double s = sqrt(dotproduct(distv, distv));
   const mf_t P_n = num_verts_P(s, p->v[vb].interior.mu_t, n);
-  s = G*s*s*s * factorial / pow(sum_d, n);
+  s = M_PI*G*s*s*s * factorial / pow(sum_d, n);
 
   return mf_mul(res, mf_mul(P_n, mf_set1(s)));
 }
@@ -216,6 +216,7 @@ vbridge_sample(path_t *p)
   // if(!mf_any(mf_gt(edf, mf_set1(0.0f)))) goto fail; // this is the wrong direction
   // compute brdf and throughput (will ignore, just check for specular)
   mf_t bsdf = shader_brdf(p, v); // also set mode on vertex v
+  (void)bsdf;
   // fprintf(stderr, "brdf %g\n", mf(bsdf, 0));
   // if(!mf_any(mf_gt(bsdf, mf_set1(0.0f)))) goto fail; // check for specular materials. // need to check flags instead
 
@@ -303,7 +304,7 @@ vbridge_sample(path_t *p)
   double fac = 1.0/(sum_d * sum_d);
   for(int i=2;i<n;i++) fac *= i/sum_d;
   double s = len_target;
-  s = s*s*s * fac; // factorial / powf(sum_d, n);
+  s = M_PI*s*s*s * fac; // factorial / powf(sum_d, n);
   // fprintf(stderr, "pdf len %g, P_n %g, sum_d %g, fac %g\n", len_target, P_n, sum_d, fac);
   md_t pdf = md_mul(mf_2d(P_n), md_set1(s));
 
@@ -351,5 +352,3 @@ vbridge_pop(path_t *p, int old_length)
   p->v[old_length].throughput = p->v[old_length].total_throughput;
   p->length = old_length;
 }
-
-#undef HOMO_MU_T

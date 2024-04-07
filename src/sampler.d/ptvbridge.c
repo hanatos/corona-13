@@ -50,7 +50,7 @@ void sampler_create_path(path_t *path)
     const int v = path->length-1;
     if(path->v[v].mode & s_emit)
     {
-      // pointsampler_splat(path, path_throughput(path) * sampler_mis(path));
+      pointsampler_splat(path, path_throughput(path) * sampler_mis(path));
 #if 0
       if(path->length > 3)
         if(path_russian_roulette(path, fminf(1.0, path->v[path->length-1].throughput/path->v[path->length-2].throughput)))
