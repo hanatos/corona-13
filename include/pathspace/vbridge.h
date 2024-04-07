@@ -294,7 +294,7 @@ vbridge_sample(path_t *p)
     p->e[i].dist *= len_target/len_traced;
     p->v[i].pdf = mf_set1(1.0f); // will include it all in the last vertex
     sum_d += p->e[i].dist;
-    // TODO: check visibility
+    if(!path_visible(p, i)) goto fail;
   }
 
   // compute throughput and pdf
