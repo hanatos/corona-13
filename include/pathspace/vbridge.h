@@ -12,9 +12,9 @@ static mf_t num_verts_P(const float dist, const mf_t mu_t, int n);
 static inline int 
 num_verts_sample(const float dist, const mf_t mu_t, mf_t *P)
 {
-#if 1
+#if 0
   if(P) P[0] = mf_set1(1.0f); // deterministic
-  return 1;// XXX
+  return 2;// XXX
   // return (int)(dist * mu_t);
 #else
   // poisson
@@ -35,7 +35,7 @@ num_verts_sample(const float dist, const mf_t mu_t, mf_t *P)
 static inline mf_t
 num_verts_P(const float dist, const mf_t mu_t, int n)
 {
-#if 1
+#if 0
   if(num_verts_sample(dist, mu_t, 0) != n) return mf_set1(0.0f);
   return mf_set1(1.0f); // deterministic
 #else
@@ -320,8 +320,8 @@ vbridge_sample(path_t *p)
   // hope for better precision if we don't blow number range up so much:
   double fac = 1.0/(sum_d * sum_d);
   for(int i=2;i<n;i++) fac *= i/sum_d;
-  double s = len_target;
-  s = s*s*s * fac; // factorial / powf(sum_d, n);
+  s = len_target;
+  s = s*s*s * fac;
 #endif
   }
   else
@@ -346,6 +346,8 @@ vbridge_sample(path_t *p)
   p->e[vn].transmittance = mf_set1(0.0f);
   f = md_mul(f, mf_2d(shader_vol_transmittance(p, vn)));
   f = md_mul(f, mf_2d(lights_eval_vertex(p, vn))); // end vertex
+  if(n > 1) // 1v nee corrects this via G term, we need to go from projected to solid angle
+    f = md_mul(f, md_set1(path_lambert(p, vn, p->e[vn].omega)));
   // f = md_set1(1);
   // pdf = md_set1(1);
   // pdf = mf_2d(vbridge_pdf(p, vn, n)); // XXX DEBUG with G terms this blows up completely
