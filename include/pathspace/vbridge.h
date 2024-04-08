@@ -12,11 +12,10 @@ static mf_t num_verts_P(const float dist, const mf_t mu_t, int n);
 static inline int 
 num_verts_sample(const float dist, const mf_t mu_t, mf_t *P)
 {
-#if 0
-  if(P) P[0] = 1.0f; // deterministic
-  return 3;// XXX
-  float meand = 1.0f/HOMO_MU_T;
-  return (int)(dist / meand);
+#if 1
+  if(P) P[0] = mf_set1(1.0f); // deterministic
+  return 1;// XXX
+  // return (int)(dist * mu_t);
 #else
   // poisson
   float T = 0.0f;
@@ -36,9 +35,9 @@ num_verts_sample(const float dist, const mf_t mu_t, mf_t *P)
 static inline mf_t
 num_verts_P(const float dist, const mf_t mu_t, int n)
 {
-#if 0
-  if(num_verts_sample(dist, 0) != n) return 0.0f;
-  return 1.0f; // deterministic
+#if 1
+  if(num_verts_sample(dist, mu_t, 0) != n) return mf_set1(0.0f);
+  return mf_set1(1.0f); // deterministic
 #else
   const mf_t l = mf_mul(mu_t, mf_set1(dist));
   uint32_t fac = 1; // n!
@@ -80,8 +79,8 @@ vbridge_pdf(
     int v,           // the index of the light vertex x_n
     int n)           // the length of the bridge from x_0..x_n
 {
-  if(p->length < 4) return mf_set1(0.0f); // no next event for 2-vertex paths.
-  if(n < 2) return mf_set1(0.0f); // bridge will add at least 2 vertices
+  if(p->length < 3) return mf_set1(0.0f); // no next event for 2-vertex paths.
+  if(n < 1) return mf_set1(0.0f); // bridge will add at least the one nee vertex
   // assert(v == 0 || v == p->length-1);
   if(!(v == 0 || v == p->length-1)) return mf_set1(0.0f);
   int v0 = v ? v-n : v+n;  // vertex where next event was sampled from (v==0 means adjoint pdf)
@@ -108,6 +107,16 @@ vbridge_pdf(
   else return mf_set1(0.0f);
   // res is now the vertex area pdf of sampling the light source position v[v]
 
+  const float distv[] = {
+    p->v[ve].hit.x[0] - p->v[vb].hit.x[0],
+    p->v[ve].hit.x[1] - p->v[vb].hit.x[1],
+    p->v[ve].hit.x[2] - p->v[vb].hit.x[2]};
+  double s = sqrt(dotproduct(distv, distv));
+  // const mf_t P_n = num_verts_P(s, p->e[vb+1].vol.mu_t, n);
+  const mf_t P_n = num_verts_P(s, p->v[vb].interior.mu_t, n);
+
+  if(n == 1) return mf_mul(P_n, res);
+
   // now compute pdf of the rest:
   // n is fixed, multiply P_n from outside
   // multiply all inner phase function pdf:
@@ -119,16 +128,9 @@ vbridge_pdf(
     sum_d += p->e[i].dist;
     G *= path_G(p, i);
   }
-  sum_d += p->e[ve].dist;
 
-  const float distv[] = {
-    p->v[ve].hit.x[0] - p->v[vb].hit.x[0],
-    p->v[ve].hit.x[1] - p->v[vb].hit.x[1],
-    p->v[ve].hit.x[2] - p->v[vb].hit.x[2]};
   double factorial = 1; // (n-1)!
   for(int i=2;i<n;i++) factorial *= i;
-  double s = sqrt(dotproduct(distv, distv));
-  const mf_t P_n = num_verts_P(s, p->v[vb].interior.mu_t, n);
   s = G*s*s*s * factorial / pow(sum_d, n);
 
   return mf_mul(res, mf_mul(P_n, mf_set1(s)));
@@ -206,11 +208,6 @@ vbridge_sample(path_t *p)
   const float len_target = sqrtf(dotproduct(to_target_xn,to_target_xn));
 
   mf_t nee_pdf = p->v[vn].pdf; // store away nee pdf
-  mf_t P_n = mf_set1(0.0f);
-  const int n = num_verts_sample(len_target, p->v[v].interior.mu_t, &P_n);
-  // fprintf(stderr, " v %d n %d vn %d\n", v, n, vn);
-  if(n < 2) return 1;
-  if(p->length + n > PATHSPACE_MAX_VERTS) return 1; // need to append n new vertices
 
   // fprintf(stderr, "edf %g\n", mf(edf, 0));
   // ask edf and bsdf for their consent:
@@ -223,9 +220,21 @@ vbridge_sample(path_t *p)
 
   // fprintf(stderr, "XXX v %d n %d vn %d\n", v, n, vn);
   // determine side of surface and volume from that (brdf sets mode)
-  if(path_edge_init_volume(p, vn)) goto fail;
+  if(path_edge_init_volume(p, vn)) return 1;
   // fprintf(stderr, "III v %d n %d vn %d\n", v, n, vn);
 
+  shader_prepare(p, vn);
+
+  mf_t P_n = mf_set1(0.0f);
+  //const int n = num_verts_sample(len_target, p->e[v+1].vol.mu_t, &P_n);
+  const int n = num_verts_sample(len_target, p->v[v].interior.mu_t, &P_n);
+  // fprintf(stderr, " v %d n %d vn %d\n", v, n, vn);
+  if(n < 1) return 1;
+  if(p->length + n > PATHSPACE_MAX_VERTS) return 1; // need to append n new vertices
+
+  double s;
+  if(n > 1)
+  { // added nee vertex and at least one in between
   // p->length = v+2;
   // path_print(p, stderr);
   // move vertex vn to end of list, free up space for x_1..x_{n-1}, our in-betweens
@@ -242,7 +251,9 @@ vbridge_sample(path_t *p)
   // sample distances and phase functions
   for(int i=v+1;i<=vn;i++)
   {
+    if(i < vn) memset(p->v+i, 0, sizeof(vertex_t));
     p->length = i; // instruct pointsampler to get new dimensions
+    p->v[i].rand_beg = p->v[i-1].rand_beg + s_dim_num_extend;
     p->e[i].dist = -logf(1.0f-pointsampler(p, s_dim_free_path));// mu_t cancels anyways
     for(int k=0;k<3;k++) // update hit position:
       p->v[i].hit.x[k] = p->v[i-1].hit.x[k] + p->e[i].dist * p->e[i].omega[k];
@@ -250,18 +261,15 @@ vbridge_sample(path_t *p)
     {
       p->v[i].hit.prim = INVALID_PRIMID;
       p->v[i].hit.shader = p->e[i].vol.shader;
-    }
-    p->v[i].rand_beg = p->v[i-1].rand_beg + s_dim_num_extend;
-    shader_prepare(p, i);
-    p->length = i+1;
-    if(i < vn)
-    {
+      shader_prepare(p, i);
+      p->length = i+1;
       shader_sample(p);        // writes p->e[i+1].omega and sets v[i].mode
       if(path_edge_init_volume(p, i+1)) goto fail;
       if(p->e[i+1].vol.shader == -1)    goto fail; // no volume
     }
     // fprintf(stderr, "v %d mode %d vol shader %d\n", i, p->v[i].mode, p->v[i].interior.shader);
   }
+  p->length = vn+1;
   // path_print(p, stderr);
   
   // setup quaternion rotation
@@ -306,7 +314,7 @@ vbridge_sample(path_t *p)
 #if 1
   double factorial = 1; // (n-1)!
   for(int i=2;i<n;i++) factorial *= i;
-  double s = len_target;
+  s = len_target;
   s = s*s*s * factorial / powf(sum_d, n);
 #else
   // hope for better precision if we don't blow number range up so much:
@@ -315,6 +323,12 @@ vbridge_sample(path_t *p)
   double s = len_target;
   s = s*s*s * fac; // factorial / powf(sum_d, n);
 #endif
+  }
+  else
+  {
+    if(!path_visible(p, vn)) goto fail;
+    s = 1.0/path_G(p, vn);
+  }
   // fprintf(stderr, "pdf len %g, P_n %g, sum_d %g, fac %g\n", len_target, P_n, sum_d, fac);
   md_t pdf = md_mul(mf_2d(P_n), md_set1(s));
 
@@ -326,6 +340,7 @@ vbridge_sample(path_t *p)
     f = md_mul(f, mf_2d(shader_vol_transmittance(p, i)));
     f = md_mul(f, mf_2d(p->v[i].interior.mu_s));
     // f = md_mul(f, md_set1(path_G(p, i)));
+    p->v[i].pdf = mf_set1(1.0f);
   }
   // f = md_mul(f, md_set1(path_G(p, vn)));
   p->e[vn].transmittance = mf_set1(0.0f);
