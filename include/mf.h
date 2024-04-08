@@ -252,7 +252,7 @@ md_t;
 
 #define md_loadu(A)  (md_t){.v0=_mm256_loadu_pd(A),   .v1=_mm256_loadu_pd((A)+8)}
 
-#define md(A,B) ((B)<4?  _mm256_extractf128_ps((A).v0,(B)>>2)[(B)&3] : _mm256_extractf128_ps((A).v1,((B)&4)>>2)[(B)&3])
+#define md(A,B) ((B)<4?  _mm256_extractf128_pd((A).v0,(B)>>2)[(B)&3] : _mm256_extractf128_ps((A).v1,((B)&4)>>2)[(B)&3])
 
 static inline double
 md_hsum(md_t a)
