@@ -222,11 +222,12 @@ vbridge_sample(path_t *p)
   // determine side of surface and volume from that (brdf sets mode)
   if(path_edge_init_volume(p, vn)) return 1;
   // fprintf(stderr, "III v %d n %d vn %d\n", v, n, vn);
+  // fprintf(stderr, "mu t %d %g %g %g mode %d\n", vn, mf(p->e[0].vol.mu_t, 0), mf(p->e[v].vol.mu_t, 0), mf(p->e[vn].vol.mu_t, 0), p->v[v].mode);
 
-  shader_prepare(p, vn);
+  shader_prepare(p, vn); // init stuff on light
 
   mf_t P_n = mf_set1(0.0f);
-  //const int n = num_verts_sample(len_target, p->e[v+1].vol.mu_t, &P_n);
+  // const int n = num_verts_sample(len_target, p->e[vn].vol.mu_t, &P_n);
   const int n = num_verts_sample(len_target, p->v[v].interior.mu_t, &P_n);
   // fprintf(stderr, " v %d n %d vn %d\n", v, n, vn);
   if(n < 1) return 1;
@@ -307,6 +308,8 @@ vbridge_sample(path_t *p)
     p->v[i].pdf = mf_set1(1.0f); // will include it all in the last vertex
     sum_d += p->e[i].dist;
     if(!path_visible(p, i)) goto fail;
+    shader_prepare(p, i); // init new volume properties
+    // fprintf(stderr, "mu t %d %g\n", i, mf(p->e[i].vol.mu_t, 0));
   }
   // fprintf(stderr, "last vertex 1 %g %g %g\n", p->v[vn].hit.x[0], p->v[vn].hit.x[1], p->v[vn].hit.x[2]);
 
