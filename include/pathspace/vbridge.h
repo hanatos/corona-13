@@ -153,20 +153,20 @@ num_verts_P(int n_max, const float dist, const mf_t mu_s, const mf_t mu_t, const
   num_verts_fill_pmf(n_max, dist, mf(mu_s, 0), mf(mu_t, 0), mean_cos, pmf);
   res[0] = pmf[n-1];
 #if MF_COUNT > 1
-  num_verts_fill_pmf(n_max, dist, mf(mu_s, 1), mf(mu_t, 1), pmf);
+  num_verts_fill_pmf(n_max, dist, mf(mu_s, 1), mf(mu_t, 1), mean_cos, pmf);
   res[1] = pmf[n-1];
-  num_verts_fill_pmf(n_max, dist, mf(mu_s, 2), mf(mu_t, 2), pmf);
+  num_verts_fill_pmf(n_max, dist, mf(mu_s, 2), mf(mu_t, 2), mean_cos, pmf);
   res[2] = pmf[n-1];
-  num_verts_fill_pmf(n_max, dist, mf(mu_s, 3), mf(mu_t, 3), pmf);
+  num_verts_fill_pmf(n_max, dist, mf(mu_s, 3), mf(mu_t, 3), mean_cos, pmf);
   res[3] = pmf[n-1];
 #if MF_COUNT > 4
-  num_verts_fill_pmf(n_max, dist, mf(mu_s, 4), mf(mu_t, 4), pmf);
+  num_verts_fill_pmf(n_max, dist, mf(mu_s, 4), mf(mu_t, 4), mean_cos, pmf);
   res[4] = pmf[n-1];
-  num_verts_fill_pmf(n_max, dist, mf(mu_s, 5), mf(mu_t, 5), pmf);
+  num_verts_fill_pmf(n_max, dist, mf(mu_s, 5), mf(mu_t, 5), mean_cos, pmf);
   res[5] = pmf[n-1];
-  num_verts_fill_pmf(n_max, dist, mf(mu_s, 6), mf(mu_t, 6), pmf);
+  num_verts_fill_pmf(n_max, dist, mf(mu_s, 6), mf(mu_t, 6), mean_cos, pmf);
   res[6] = pmf[n-1];
-  num_verts_fill_pmf(n_max, dist, mf(mu_s, 7), mf(mu_t, 7), pmf);
+  num_verts_fill_pmf(n_max, dist, mf(mu_s, 7), mf(mu_t, 7), mean_cos, pmf);
   res[7] = pmf[n-1];
 #endif
 #endif
