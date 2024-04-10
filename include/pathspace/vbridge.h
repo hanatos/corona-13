@@ -8,10 +8,120 @@
 
 #include <math.h>
 
-static mf_t num_verts_P(const float dist, const mf_t mu_t, int n);
-static inline int 
-num_verts_sample(const float dist, const mf_t mu_t, mf_t *P)
+#define NUM_VERTS_NUM_G 32
+#define NUM_VERTS_NUM_K 16
+#define NUM_VERTS_NUM_NODE 5
+extern float num_verts_param1[NUM_VERTS_NUM_G][NUM_VERTS_NUM_K][3 + 2 * (1 + 2 * (NUM_VERTS_NUM_NODE - 1))];
+extern float num_verts_param2[NUM_VERTS_NUM_G][NUM_VERTS_NUM_K][3 + 2 * (1 + 2 * (NUM_VERTS_NUM_NODE - 1))];
+
+#define NUM_VERTS_USE_TABLE 1 // precomputed
+//#define NUM_VERTS_USE_TABLE 0 // poisson
+
+#define NUM_VERTS_SECOND_MOMENT 0 // use first moment
+//#define NUM_VERTS_SECOND_MOMENT 1 // use second moment
+
+#if NUM_VERTS_SECOND_MOMENT == 1
+#define NUM_VERTS_PARAM num_verts_param2
+#else
+#define NUM_VERTS_PARAM num_verts_param1
+#endif
+
+
+static float num_verts_eval_curve(const float *curve, float s)
 {
+    int num = NUM_VERTS_NUM_NODE;
+    float first = curve[0];
+    float center = curve[1];
+    float last = curve[2];
+    if (s < first || s > last)
+        return 0.0;
+    float x0, step;
+    int p0_idx = 3;
+    if (s < center)
+    {
+        step = (center - first) / (float)(num - 1);
+        int subidx = (s - first) / step;
+        x0 = first + subidx * step;
+        p0_idx += 2 * subidx;
+    }
+    else
+    {
+        step = (last - center) / (float)(num - 1);
+        int subidx = (s - center) / step;
+        x0 = center + subidx * step;
+        p0_idx += 2 * (num - 1 + subidx);
+    }
+    float x1 = x0 + step;
+    const float *p0 = &curve[p0_idx];
+    const float *p1 = &curve[p0_idx + 2];
+
+    float t = (s - x0) / (x1 - x0); // clamp?
+    float t2 = t * t;
+    float t3 = t2 * t;
+    float h00 = 2.f * t3 - 3.f * t2 + 1.f;
+    float h10 = t3 - 2.f * t2 + t;
+    float h01 = -2.f * t3 + 3.f * t2;
+    float h11 = t3 - t2;
+    return h00 * p0[0] + h10 * (x1 - x0) * p0[1] + h01 * p1[0] + h11 * (x1 - x0) * p1[1];
+}
+
+// vertex number is number of inserted vertices here, >= 1
+static float num_verts_eval_bn(int num_scatter_verts, float g, float x) {
+  //const float g_min = -0.99;
+  const float g_min = 0.5;
+  const float g_max = 0.99;
+  float g_idx_real = (g - g_min) / (g_max - g_min) * (float) NUM_VERTS_NUM_G;
+  int g_idx = CLAMP((int) g_idx_real, 0, NUM_VERTS_NUM_G - 1);
+  float t = g_idx_real - g_idx;
+  int n_idx = CLAMP(num_scatter_verts - 1, 0, NUM_VERTS_NUM_K - 1);
+  float val0 = num_verts_eval_curve(NUM_VERTS_PARAM[g_idx][n_idx], x);
+  float val1 = num_verts_eval_curve(NUM_VERTS_PARAM[MIN(g_idx + 1, NUM_VERTS_NUM_G - 1)][n_idx], x);
+  return MAX(0.f, val0 * (1.0 - t) + val1 * t);
+}
+
+static void num_verts_fill_pmf(int n_max, const float dist, const float mu_s, const float mu_t, const float mean_cos, float *pmf) {
+  if(mu_t == 0.0f)
+  {
+    pmf[0] = 1.f;
+    for(int i = 1; i < n_max; i++) pmf[i] = 0.f;
+    return;
+  }
+  pmf[0] = expf(-mu_t * dist) / (dist * dist); // single scattering / nee
+  float s3 = dist * dist * dist;
+  float albedo = 1.0;
+  for(int i = 1; i < n_max; i++) {
+    float x = mu_t * dist;
+    float val = num_verts_eval_bn(i, mean_cos, x);
+    albedo *= mu_s / mu_t;
+    val *= albedo / (mu_t * s3);
+    pmf[i] = val;
+  }
+  //flockfile(stdout);
+  //printf("mean cos %g mu_s %g mu_t %g\n", mean_cos, mu_s, mu_t);
+  //for(int i = 0; i < n_max; i++) {
+  //  printf("cdf[%d] = %g\n", i, pmf[i]);
+  //}
+  //funlockfile(stdout);
+  float sum = 0.0;
+  for(int i = 0; i < n_max; i++) sum += pmf[i];
+  for(int i = 0; i < n_max; i++) pmf[i] /= sum;
+}
+
+// n_max is inclusive, i.e. 1 <= n <= n_max
+static mf_t num_verts_P(int n_max, const float dist, const mf_t mu_s, const mf_t mu_t, const float mean_cos, int n);
+static inline int 
+num_verts_sample(int n_max, const float dist, const mf_t mu_s, const mf_t mu_t, const float mean_cos, mf_t *P)
+{
+  if(n_max <= 0) return 0;
+#if NUM_VERTS_USE_TABLE
+  float cdf[PATHSPACE_MAX_VERTS];
+  num_verts_fill_pmf(n_max, dist, mf(mu_s, 0), mf(mu_t, 0), mean_cos, cdf);
+  for(int i = 1; i < n_max; i++) cdf[i] += cdf[i - 1];
+  float xi = points_rand(rt.points, common_get_threadid());
+  int n = 1 + sample_cdf(cdf, n_max, xi);
+  if(P) P[0] = num_verts_P(n_max, dist, mu_s, mu_t, mean_cos, n);
+  return n;
+#else
 #if 0
   if(P) P[0] = mf_set1(1.0f); // deterministic
   return 2;// XXX
@@ -27,14 +137,41 @@ num_verts_sample(const float dist, const mf_t mu_t, mf_t *P)
     T -= log(1.0f-xi)/l;
     n++;
   }
-  if(P) P[0] = num_verts_P(dist, mu_t, n);
+  if(P) P[0] = num_verts_P(n_max, dist, mu_s, mu_t, mean_cos, n);
   return n;
+#endif
 #endif
 }
 
 static inline mf_t
-num_verts_P(const float dist, const mf_t mu_t, int n)
+num_verts_P(int n_max, const float dist, const mf_t mu_s, const mf_t mu_t, const float mean_cos, int n)
 {
+  if(n <= 0) return mf_set1(0.f);
+#if NUM_VERTS_USE_TABLE
+  float pmf[PATHSPACE_MAX_VERTS];
+  float res[MF_COUNT];
+  num_verts_fill_pmf(n_max, dist, mf(mu_s, 0), mf(mu_t, 0), mean_cos, pmf);
+  res[0] = pmf[n-1];
+#if MF_COUNT > 1
+  num_verts_fill_pmf(n_max, dist, mf(mu_s, 1), mf(mu_t, 1), pmf);
+  res[1] = pmf[n-1];
+  num_verts_fill_pmf(n_max, dist, mf(mu_s, 2), mf(mu_t, 2), pmf);
+  res[2] = pmf[n-1];
+  num_verts_fill_pmf(n_max, dist, mf(mu_s, 3), mf(mu_t, 3), pmf);
+  res[3] = pmf[n-1];
+#if MF_COUNT > 4
+  num_verts_fill_pmf(n_max, dist, mf(mu_s, 4), mf(mu_t, 4), pmf);
+  res[4] = pmf[n-1];
+  num_verts_fill_pmf(n_max, dist, mf(mu_s, 5), mf(mu_t, 5), pmf);
+  res[5] = pmf[n-1];
+  num_verts_fill_pmf(n_max, dist, mf(mu_s, 6), mf(mu_t, 6), pmf);
+  res[6] = pmf[n-1];
+  num_verts_fill_pmf(n_max, dist, mf(mu_s, 7), mf(mu_t, 7), pmf);
+  res[7] = pmf[n-1];
+#endif
+#endif
+  return mf_loadu(res);
+#else
 #if 0
   if(num_verts_sample(dist, mu_t, 0) != n) return mf_set1(0.0f);
   return mf_set1(1.0f); // deterministic
@@ -57,6 +194,7 @@ num_verts_P(const float dist, const mf_t mu_t, int n)
 #endif
 #endif
   return mf_loadu(res);
+#endif
 #endif
 }
 
@@ -113,7 +251,8 @@ vbridge_pdf(
     p->v[ve].hit.x[2] - p->v[vb].hit.x[2]};
   double s = sqrt(dotproduct(distv, distv));
   // const mf_t P_n = num_verts_P(s, p->e[vb+1].vol.mu_t, n);
-  const mf_t P_n = num_verts_P(s, p->v[vb].interior.mu_t, n);
+  int n_max = PATHSPACE_MAX_VERTS - 1 - vb;
+  const mf_t P_n = num_verts_P(n_max, s, p->v[vb].interior.mu_s, p->v[vb].interior.mu_t, p->v[vb].interior.mean_cos, n);
 
   if(n == 1) return mf_mul(P_n, res);
 
@@ -228,7 +367,8 @@ vbridge_sample(path_t *p)
 
   mf_t P_n = mf_set1(0.0f);
   // const int n = num_verts_sample(len_target, p->e[vn].vol.mu_t, &P_n);
-  const int n = num_verts_sample(len_target, p->v[v].interior.mu_t, &P_n);
+  int n_max = PATHSPACE_MAX_VERTS - p->length;
+  const int n = num_verts_sample(n_max, len_target, p->v[v].interior.mu_s, p->v[v].interior.mu_t, p->v[v].interior.mean_cos, &P_n);
   // fprintf(stderr, " v %d n %d vn %d\n", v, n, vn);
   if(n < 1) return 1;
   if(p->length + n > PATHSPACE_MAX_VERTS) return 1; // need to append n new vertices

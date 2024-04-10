@@ -92,6 +92,11 @@ ifeq ($(MOD_render),erpt)
 	STATIC_SOURCES+=src/pathspace/vmlt.c
 endif
 
+ifeq ($(MOD_sampler),ptvbridge)
+	STATIC_SOURCES+=src/pathspace/vbridge_num_verts_param1.c
+	STATIC_SOURCES+=src/pathspace/vbridge_num_verts_param2.c
+endif
+
 debug:CFLAGS+=-gdwarf-2 -ggdb3 -msse2 -mfpmath=sse -O0
 debug:LDFLAGS+=-lm -lc -ldl -lrt -lX11 -rdynamic -Lext/pthread-pool/ -lpthreadpool -pthread -Wl,-rpath,'$$ORIGIN/shaders'
 debug:corona modules
