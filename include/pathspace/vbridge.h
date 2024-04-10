@@ -55,7 +55,7 @@ static float num_verts_eval_curve(const float *curve, float s)
     const float *p0 = &curve[p0_idx];
     const float *p1 = &curve[p0_idx + 2];
 
-    float t = (s - x0) / (x1 - x0); // clamp?
+    float t = CLAMP((s - x0) / (x1 - x0), 0.0f, 1.0f);
     float t2 = t * t;
     float t3 = t2 * t;
     float h00 = 2.f * t3 - 3.f * t2 + 1.f;
@@ -79,22 +79,22 @@ static float num_verts_eval_bn(int num_scatter_verts, float g, float x) {
   return MAX(0.f, val0 * (1.0 - t) + val1 * t);
 }
 
-static void num_verts_fill_pmf(int n_max, const float dist, const float mu_s, const float mu_t, const float mean_cos, float *pmf) {
-  if(mu_t == 0.0f)
-  {
-    pmf[0] = 1.f;
-    for(int i = 1; i < n_max; i++) pmf[i] = 0.f;
-    return;
-  }
-  pmf[0] = expf(-mu_t * dist) / (dist * dist); // single scattering / nee
-  float s3 = dist * dist * dist;
+static void num_verts_fill_pmf(int n_max, const float dist, const float mu_s, const float mu_t, const float mean_cos, float *pmf)
+{
   float albedo = 1.0;
-  for(int i = 1; i < n_max; i++) {
+  float sum = 0.0;
+  if(mu_t == 0.0f) goto error;
+  float s3 = dist * dist * dist;
+  if(mu_t * s3 < 1e-6f) goto error;
+  pmf[0] = expf(-mu_t * dist) / (dist * dist); // nee
+  for(int i = 1; i < n_max; i++)
+  {
     float x = mu_t * dist;
     float val = num_verts_eval_bn(i, mean_cos, x);
     albedo *= mu_s / mu_t;
     val *= albedo / (mu_t * s3);
     pmf[i] = val;
+    if(!(pmf[i] == pmf[i])) goto error;
   }
   //flockfile(stdout);
   //printf("mean cos %g mu_s %g mu_t %g\n", mean_cos, mu_s, mu_t);
@@ -102,9 +102,15 @@ static void num_verts_fill_pmf(int n_max, const float dist, const float mu_s, co
   //  printf("cdf[%d] = %g\n", i, pmf[i]);
   //}
   //funlockfile(stdout);
-  float sum = 0.0;
   for(int i = 0; i < n_max; i++) sum += pmf[i];
+  if(!(sum < FLT_MAX)) goto error;
+  if(!(sum > 0)) goto error;
   for(int i = 0; i < n_max; i++) pmf[i] /= sum;
+  if(!(pmf[n_max-1] == pmf[n_max-1])) goto error;
+  return;
+error:
+  pmf[0] = 1.f;
+  for(int i = 1; i < n_max; i++) pmf[i] = 0.f;
 }
 
 // n_max is inclusive, i.e. 1 <= n <= n_max
@@ -395,7 +401,7 @@ vbridge_sample(path_t *p)
     if(i < vn) memset(p->v+i, 0, sizeof(vertex_t));
     p->length = i; // instruct pointsampler to get new dimensions
     p->v[i].rand_beg = p->v[i-1].rand_beg + s_dim_num_extend;
-    p->e[i].dist = -logf(1.0f-pointsampler(p, s_dim_free_path));// mu_t cancels anyways
+    p->e[i].dist = MAX(1e-6, -logf(1.0f-pointsampler(p, s_dim_free_path)));// mu_t cancels anyways
     for(int k=0;k<3;k++) // update hit position:
       p->v[i].hit.x[k] = p->v[i-1].hit.x[k] + p->e[i].dist * p->e[i].omega[k];
     if(i < vn)

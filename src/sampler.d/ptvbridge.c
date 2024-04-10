@@ -57,8 +57,8 @@ void sampler_create_path(path_t *path)
 #if 0
       if(path->length > 3)
         if(path_russian_roulette(path, fminf(1.0, path->v[path->length-1].throughput/path->v[path->length-2].throughput)))
-          return;
 #endif
+          return;
     }
 
     const int old_length = path->length;
