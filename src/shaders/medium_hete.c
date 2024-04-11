@@ -108,7 +108,8 @@ static inline void mie_fit(
 
 static inline float mean_cos(medium_t *s)
 {
-  return (s->g0 + s->g1)*.5f; // blatant lie
+  return s->g0; // return 0, assume is more important
+  // return (s->g0 + s->g1)*.5f; // blatant lie
   // return 0.9; // approximately right for the mie fit above, maybe
 }
 
@@ -294,6 +295,7 @@ float prepare(path_t *p, int v, void *data)
     if(!p->debug_volume_bridge)
       vol_lookup(s->tree, p->v[v].hit.x[0], p->v[v].hit.x[1], p->v[v].hit.x[2],
         s_vol_density | s_vol_temperature, INTERP(s, v), 0, p->time, dens_temp);
+    else dens_temp[0] = 1.0f;
     p->v[v].interior.mu_t = mf_set1(sigma_reg * dens_temp[0] * s->sigma_t);
     p->v[v].interior.mu_s = mf_set1(sigma_reg * dens_temp[0] * s->sigma_s);
     

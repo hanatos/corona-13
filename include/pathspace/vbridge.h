@@ -8,7 +8,7 @@
 
 #include <math.h>
 
-#define RR_SURVIVAL_P 0.5f
+#define RR_SURVIVAL_P 0.3f
 
 #define NUM_VERTS_NUM_G 32
 #define NUM_VERTS_NUM_K 16
@@ -260,7 +260,7 @@ vbridge_pdf(
   double s = sqrt(dotproduct(distv, distv));
   // const mf_t P_n = num_verts_P(s, p->e[vb+1].vol.mu_t, n);
   int n_max = PATHSPACE_MAX_VERTS - 1 - vb;
-  const mf_t P_n = num_verts_P(n_max, s, p->v[vb].interior.mu_s, p->v[vb].interior.mu_t, p->v[vb].interior.mean_cos, n);
+  mf_t P_n = num_verts_P(n_max, s, p->v[vb].interior.mu_s, p->v[vb].interior.mu_t, p->v[vb].interior.mean_cos, n);
   P_n = mf_mul(P_n, mf_set1(RR_SURVIVAL_P));
 
   if(n == 1) return mf_mul(P_n, res);
