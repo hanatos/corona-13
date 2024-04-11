@@ -24,6 +24,7 @@ void path_init(path_t *path, uint64_t index, int camid)
   path->sensor.camid = camid;
   memset(path->v, 0, 2*sizeof(vertex_t));
   memset(path->e, 0, 2*sizeof(edge_t));
+  path->debug_volume_bridge = 0;
 }
 
 void path_copy(path_t *path, const path_t *other)
@@ -38,6 +39,7 @@ void path_copy(path_t *path, const path_t *other)
   path->sensor = other->sensor;
   for(int v=0;v<other->length;v++) path->v[v] = other->v[v];
   for(int e=0;e<other->length;e++) path->e[e] = other->e[e];
+  path->debug_volume_bridge = other->debug_volume_bridge;
 }
 
 float path_lambert(const path_t *p, int v, const float *omega)

@@ -408,7 +408,9 @@ vbridge_sample(path_t *p)
     {
       p->v[i].hit.prim = INVALID_PRIMID;
       p->v[i].hit.shader = p->e[i].vol.shader;
+      p->debug_volume_bridge = 1; // hack: avoid accessing volume data
       shader_prepare(p, i);
+      p->debug_volume_bridge = 0;
       p->length = i+1;
       shader_sample(p);        // writes p->e[i+1].omega and sets v[i].mode
       if(path_edge_init_volume(p, i+1)) goto fail;

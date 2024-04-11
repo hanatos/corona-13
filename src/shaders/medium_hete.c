@@ -291,7 +291,8 @@ float prepare(path_t *p, int v, void *data)
     const float sigma_reg = (1-g)*(1-reg)+reg;
     // query density and derive mu_t, mu_s from that.
     float dens_temp[2] = {0.0f};
-    vol_lookup(s->tree, p->v[v].hit.x[0], p->v[v].hit.x[1], p->v[v].hit.x[2],
+    if(!p->debug_volume_bridge)
+      vol_lookup(s->tree, p->v[v].hit.x[0], p->v[v].hit.x[1], p->v[v].hit.x[2],
         s_vol_density | s_vol_temperature, INTERP(s, v), 0, p->time, dens_temp);
     p->v[v].interior.mu_t = mf_set1(sigma_reg * dens_temp[0] * s->sigma_t);
     p->v[v].interior.mu_s = mf_set1(sigma_reg * dens_temp[0] * s->sigma_s);
