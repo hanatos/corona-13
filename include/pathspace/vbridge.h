@@ -8,6 +8,8 @@
 
 #include <math.h>
 
+#define RR_SURVIVAL_P 0.5f
+
 #define NUM_VERTS_NUM_G 32
 #define NUM_VERTS_NUM_K 16
 #define NUM_VERTS_NUM_NODE 5
@@ -259,6 +261,7 @@ vbridge_pdf(
   // const mf_t P_n = num_verts_P(s, p->e[vb+1].vol.mu_t, n);
   int n_max = PATHSPACE_MAX_VERTS - 1 - vb;
   const mf_t P_n = num_verts_P(n_max, s, p->v[vb].interior.mu_s, p->v[vb].interior.mu_t, p->v[vb].interior.mean_cos, n);
+  P_n = mf_mul(P_n, mf_set1(RR_SURVIVAL_P));
 
   if(n == 1) return mf_mul(P_n, res);
 
@@ -297,6 +300,10 @@ vbridge_sample(path_t *p)
   assert(p->length >= 2); // at least camera and first hit.
   if(p->v[p->length-1].flags & s_environment) return 1;
   const int v = p->length-1; // constructing new vertices starting here
+
+  // russian roulette
+  float xi = points_rand(rt.points, common_get_threadid());
+  if(xi > RR_SURVIVAL_P) return 1; 
 
   // sample vertex vn as endpoint (lights or camera)
   int vn = v+1;
@@ -481,7 +488,7 @@ vbridge_sample(path_t *p)
     s = 1.0/path_G(p, vn);
   }
   // fprintf(stderr, "pdf len %g, P_n %g, sum_d %g, fac %g\n", len_target, P_n, sum_d, fac);
-  md_t pdf = md_mul(mf_2d(P_n), md_set1(s));
+  md_t pdf = md_mul(mf_2d(P_n), md_set1(s*RR_SURVIVAL_P));
 
   md_t f = mf_2d(shader_brdf(p, v)); // start vertex
   for(int i=v+1;i<v+n;i++)
@@ -541,3 +548,5 @@ vbridge_pop(path_t *p, int old_length)
   // p->v[old_length].throughput = p->v[old_length].total_throughput;
   p->length = old_length;
 }
+
+#undef RR_SURVIVAL_P
