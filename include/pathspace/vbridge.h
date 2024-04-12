@@ -35,8 +35,8 @@ static float num_verts_eval_curve(const float *curve, float s)
     float first = curve[0];
     float center = curve[1];
     float last = curve[2];
-    if (s < first || s > last)
-        return 0.0;
+    if (s < first) return (s / first) * curve[3];
+    else if (s > last) return 0.0;
     float x0, step;
     int p0_idx = 3;
     if (s < center)
