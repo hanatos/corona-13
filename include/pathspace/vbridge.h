@@ -8,7 +8,8 @@
 
 #include <math.h>
 
-#define RR_SURVIVAL_P 0.3f
+// #define RR_SURVIVAL_P 0.3f
+#define RR_SURVIVAL_P 1.0f
 
 #define NUM_VERTS_NUM_G 32
 #define NUM_VERTS_NUM_K 16
