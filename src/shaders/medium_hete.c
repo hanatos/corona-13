@@ -378,8 +378,8 @@ int init(FILE* f, void** data)
 {
   medium_t *s = malloc(sizeof(*s));
   memset(s, 0, sizeof(medium_t));
-  //s->interpolation = s_vol_constant;
-  s->interpolation = s_vol_smooth;
+  s->interpolation = s_vol_constant;
+  // s->interpolation = s_vol_smooth;
   *data = (void *)s;
   char filename[1024];
   s->sigma_t = 10.0f;
