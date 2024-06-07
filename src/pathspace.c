@@ -764,10 +764,6 @@ int path_propagate(path_t *path, int v, const path_propagation_mode_t mode)
   float total_dist = hit->dist;
   path->e[v].dist = total_dist;
 
-  // light tracer exited to envmap:
-  if(hit->dist == FLT_MAX && (path->v[0].mode & s_emit) && !(path->v[v].mode & s_sensor))
-    return 3;
-
   // reconstruction failed to find a vertex up until clip distance, but geometry was requested
   if(mode == s_propagate_reconstruct && hit->dist == clipdist && clipdist < FLT_MAX && path->e[v].vol.shader == -1)
     return 4;
@@ -859,6 +855,9 @@ int path_propagate(path_t *path, int v, const path_propagation_mode_t mode)
 
   if(path->e[v].dist >= FLT_MAX)
   { // envmap hit. this doesn't get shader_prepare() calls, in particular it doesn't have an inited manifold system
+    // light tracer exited to envmap:
+    if((path->v[0].mode & s_emit) && !(path->v[v].mode & s_sensor)) return 3;
+
     path->v[v].flags |= s_environment;
     // init envmap emission
     shader_prepare(path, v);
