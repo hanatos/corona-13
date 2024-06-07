@@ -184,7 +184,11 @@ static inline mf_t sampler_mis(path_t *path, int light_v)
   const int light_dir = (path->v[0].mode & s_emit);
   if(path->length == 2)
   {
-    if(light_v == 0) return mf_set1(1.0f);
+    if(light_v == 0)
+    {
+      md_t pdf = path_pdf(path);
+      return md_2f(md_div(pdf, md_set1(md_hsum(pdf))));
+    }
     else return mf_set1(0.0f); // no technique other than pt is good at sampling directly visible light sources
   }
   // got a path with l=light_v light vertices and e=path->length-light_v eye vertices.
@@ -290,10 +294,16 @@ static inline mf_t sampler_mis(path_t *path, int light_v)
     {
       opdf = mf_2d(vpdf_fwd[num_fwd-1] * vpdf_adj[num_fwd]);
     }
-    sum_other_pdf2 = md_add(sum_other_pdf2, md_mul(opdf, opdf));
+    // power heuristic
+    // sum_other_pdf2 = md_add(sum_other_pdf2, md_mul(opdf, opdf));
+    // balance heuristic
+    sum_other_pdf2 = md_add(sum_other_pdf2, opdf);
   }
 
-  return md_2f(md_div(md_mul(pdf, pdf), md_set1(md_hsum(sum_other_pdf2))));
+  // power heuristic
+  // return md_2f(md_div(md_mul(pdf, pdf), md_set1(md_hsum(sum_other_pdf2))));
+  // balance heuristic
+  return md_2f(md_div(pdf, md_set1(md_hsum(sum_other_pdf2))));
 }
 
 void sampler_create_path(path_t *path)
