@@ -290,8 +290,8 @@ static inline void sample_hg(
     float *out,     // output in local tangent space coords
     float *pdf)     // if != 0, computes and returns pdf here.
 {
-  return sample_hg_fwd(g, r1, r2, out, pdf);
-#if 1 // XXX DEBUG
+  // return sample_hg_fwd(g, r1, r2, out, pdf); // XXX DEBUG
+#if 1
   if(g == 0.0f)
   {
     sample_sphere(out, out+1, out+2, r1, r2);
@@ -340,7 +340,7 @@ static inline float sample_eval_hg(
     const float *wi,
     const float *wo)
 {
-  return sample_eval_hg_fwd(g, wi, wo);
+  // return sample_eval_hg_fwd(g, wi, wo);
 #if 0 // XXX DEBUG
   const float k = 100.0f;
   const float cosh = dotproduct(wi, wo);
