@@ -188,15 +188,15 @@ static inline int fb_tex_from_float(
   if(fb_init(&fb, width, height, stride, fb_file))
     return 1;
   double max_mul = 1.0f;
-  // for(uint64_t k=0;k<width*height;k++)
-  // {
-  //   float mul = MAX(MAX(data[3*k+0], data[3*k+1]), data[3*k+2]);
-  //   max_mul = MAX(max_mul, mul);
-  // }
+  for(uint64_t k=0;k<width*height;k++)
+  {
+    float mul = MAX(MAX(data[3*k+0], data[3*k+1]), data[3*k+2]);
+    max_mul = MAX(max_mul, mul);
+  }
   for(uint64_t k=0;k<width*height;k++)
   {
     float col[3];
-    float mul = MAX(MAX(data[3*k+0], data[3*k+1]), data[3*k+2]);
+    float mul = max_mul;//MAX(MAX(data[3*k+0], data[3*k+1]), data[3*k+2]);
     for(int i=0;i<3;i++) col[i] = CLAMP(data[3*k+i] / mul, 0.0f, 1.0f);
     rgb2spec_fetch(r2s, col, fb.fb+stride*k);
     if(hdr) fb.fb[stride*k+stride-1] = mul;

@@ -529,7 +529,7 @@ mf_t brdf(path_t *p, int v, void *data)
     if(p->v[v].mode & s_glossy)
       return mf_select(mf_set1(0.0f),
             mf_div(mf_mul(mf_mul(p->v[v].shading.rg, mf_sub(mf_set1(1.0f), R2)),
-            mf_mul(mf_mul(n2, n2), mf_mul(cost, mf_mul(DG1, mf_set1(G1/fabsf(cos_out)))))), denom),
+            mf_mul(mf_mul(n2, n2), mf_mul(cost, mf_mul(DG1, mf_mul(G1, mf_set1(1.0f/fabsf(cos_out))))))), denom),
             mask);
 
     // pure specular case

@@ -68,6 +68,8 @@ STATIC_HEADERS=\
     include/pathspace/raydifferentials.h\
     include/pathspace/nee.h\
     include/pathspace/mnee.h\
+    include/pathspace/mvnee.h\
+    include/pathspace/equiangular.h\
     include/pathspace/tech.h\
     include/screenshot.h\
     include/lights.h
@@ -88,6 +90,11 @@ ifeq ($(MOD_pointsampler),vmlt)
 endif
 ifeq ($(MOD_render),erpt)
 	STATIC_SOURCES+=src/pathspace/vmlt.c
+endif
+
+ifeq ($(MOD_sampler),ptvbridge)
+	STATIC_SOURCES+=src/pathspace/vbridge_num_verts_param1.c
+	STATIC_SOURCES+=src/pathspace/vbridge_num_verts_param2.c
 endif
 
 debug:CFLAGS+=-gdwarf-2 -ggdb3 -msse2 -mfpmath=sse -O0
@@ -179,7 +186,7 @@ clean: modules_clean
 	rm -f build/*
 	make -C ext/pthread-pool clean
 
-SHADERS=color mult interior texture medium_rgb medium_poe dielectric diffdiel colorcheckersg metal medium_hete vdata medium_aggregate
+SHADERS=color mult interior texture medium_rgb medium_poe dielectric diffdiel colorcheckersg metal medium_hete vdata medium_aggregate bump
 ifneq (,$(findstring MF_COUNT,$(CFLAGS)))
   # hero wavelength, need to disable a few non-ported bsdf :(
 else

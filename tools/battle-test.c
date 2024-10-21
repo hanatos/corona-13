@@ -35,6 +35,7 @@ __thread rt_tls_t rt_tls;
 int  accel_visible(const struct accel_t *b, const ray_t *ray) { return 0; }
 void accel_intersect(const struct accel_t *b, const ray_t *ray, hit_t *hit) {}
 const float *accel_aabb(const struct accel_t *b) { return 0; }
+void accel_print_info(FILE *fd) { }
 
 void writeP5(uint8_t *buf, int size, const char *filename)
 {

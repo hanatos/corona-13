@@ -225,6 +225,63 @@ static inline uint32_t sample_cdf(const float *cdf, const int num, const float r
   return t;
 }
 
+
+static inline float sample_eval_hg_fwd(
+    const float g,
+    const float *wi,
+    const float *wo)
+{
+#if 0 // XXX DEBUG
+  {
+  const float k = 1.0/(1.0-g);
+  const float cos_theta = dotproduct(wi, wo);
+  if(cos_theta <= 0.0f) return 0.0f;
+  return powf(cos_theta, k) * (k+1.0f)/(2.0f*M_PI);
+  }
+#endif // XXX DEBUG
+  const float cos_theta = dotproduct(wi, wo);
+  if(cos_theta <= 0.0f) return 0.0f;
+  if(g == 0.0f) return 1.0f/(2.0f*M_PI);
+  const float hg = 1.0f/(4.0f*M_PI) * (1.0f-g*g)/powf(1.0f + g*g - 2.0f*g*cos_theta, 3.0f/2.0f);
+  const float norm = (1.0f+g) * ( -1.0f + g + sqrtf(1.0f+g*g))/ (2.0f*g*sqrtf(1.0f+g*g));
+  return hg / norm;
+}
+
+static inline void sample_hg_fwd(
+    const float g,  // mean cosine
+    const float r1, // one uniform [0,1) random number
+    const float r2, // another of those
+    float *out,     // output in local tangent space coords, out[0] is forward
+    float *pdf)     // if != 0, computes and returns pdf here.
+{
+#if 0 // XXX DEBUG
+  const float k = 1.0/(1.0-g);
+  sample_cos_k(out+1, out+2, out, k, r1, r2);
+  if(pdf) *pdf = powf(out[0], k) * (k+1.0f)/(2.0f*M_PI);
+  return;
+#endif // XXX DEBUG
+  if(g == 0.0f)
+  {
+    sample_hemisphere(out+2, out+1, out, r1, r2);
+    if(pdf) *pdf = 1.0f/(2.0f*M_PI);
+    return;
+  }
+  const float cos_theta = r1 * (1.0f + g*g) * (1.0f - 2.0f*g + r1*g + g*g + sqrtf(1.0f+g*g) - g*sqrtf(1.0f+g*g)) /
+    (1.0f - 3.0f*g + 2.0f*r1*g + 4.0f*g*g - 4.0f*r1*g*g + 2.0f*r1*r1*g*g - 3.0f*g*g*g + 2.0f*r1*g*g*g + g*g*g*g + sqrtf(1.0f+g*g) -
+     3.0f*g*sqrtf(1.0f+g*g) + 2.0f*r1*g*sqrtf(1.0f+g*g) + 3.0f*g*g*sqrtf(1.0f+g*g) - 2.0f*r1*g*g*sqrtf(1.0f+g*g) - g*g*g*sqrtf(1.0f+g*g));
+  const float phi = 2.0f*M_PI*r2;
+  const float l = sqrtf(fmaxf(0.0f, 1.0f-cos_theta*cos_theta));
+  out[0] = cos_theta;
+  out[1] = cosf(phi)*l;
+  out[2] = sinf(phi)*l;
+  // normalise(out);
+  if(pdf)
+  {
+    float wi[] = {1.0f, 0.0f, 0.0f};
+    *pdf = sample_eval_hg_fwd(g, wi, out);
+  }
+}
+
 // sample a henyey greenstein lobe with mean cosine g
 static inline void sample_hg(
     const float g,  // mean cosine
@@ -233,23 +290,32 @@ static inline void sample_hg(
     float *out,     // output in local tangent space coords
     float *pdf)     // if != 0, computes and returns pdf here.
 {
+  // return sample_hg_fwd(g, r1, r2, out, pdf); // XXX DEBUG
+#if 1
   if(g == 0.0f)
   {
     sample_sphere(out, out+1, out+2, r1, r2);
     if(pdf) *pdf = 1.0f/(4.0f*M_PI);
     return;
   }
-  const float sqr = (1.0f-g*g)/(1.0f-g*(2.0f*r1-1));
+  const float sqr = (1.0f-g*g)/(1.0f+g*(2.0f*r1-1.0f));
   const float cos_theta = 1.0f/(2.0f*g) * (1.0f + g*g - sqr*sqr);
   const float phi = 2.0f*M_PI*r2;
   const float l = sqrtf(fmaxf(0.0f, 1.0f-cos_theta*cos_theta));
   out[0] = cos_theta;
   out[1] = cosf(phi)*l;
   out[2] = sinf(phi)*l;
-  normalise(out);
-  if(pdf) *pdf = 1.0f/(4.0f*M_PI) * (1.0f-g)/powf(1.0f + g*g - 2.0f*g*cos_theta, 3.0f/2.0f);
+  // normalise(out);
+  if(pdf) *pdf = 1.0f/(4.0f*M_PI) * (1.0f-g*g)/powf(1.0f + g*g - 2.0f*g*cos_theta, 3.0f/2.0f);
+#endif
+#if 0 // XXX DEBUG
+  const float k = 100.0f;
+  sample_cos_k(out+1, out+2, out, k, r1, r2);
+  if(pdf) *pdf = powf(out[0], k) * (k+1.0f)/(2.0f*M_PI);
+#endif
 }
 
+// FIXME: this does not work. r2 for the hg case yes, the other not so much
 static inline void sample_inverse_hg(
     const float g,
     const float *wo,
@@ -264,9 +330,9 @@ static inline void sample_inverse_hg(
     return;
   }
   const float cos_theta = wo[0];
-  const float phi = atan2f(wo[2], wo[1]);
-  *r2 = phi / (2.0f*M_PI);
-  *r1 = (1.0f-g*g)/(2.0f*g)*(1.0f/sqrtf(1.0f+g*g-2.0f*g*cos_theta) - 1.0f/(1.0f+g));
+  const float phi = atan2f(-wo[2], -wo[1]);
+  *r2 = (M_PI + phi) / (2.0f*M_PI);
+  *r1 = (1.0f-g*g)/(2.0f*g)*(1.0f/sqrtf(1.0f+g*g+2.0f*g*cos_theta) - 1.0f/(1.0f+g));
 }
 
 static inline float sample_eval_hg(
@@ -274,11 +340,18 @@ static inline float sample_eval_hg(
     const float *wi,
     const float *wo)
 {
+  // return sample_eval_hg_fwd(g, wi, wo);
+#if 0 // XXX DEBUG
+  const float k = 100.0f;
+  const float cosh = dotproduct(wi, wo);
+  if(cosh <= 0.0f) return 0.0f;
+  return powf(cosh, k) * (k+1.0f)/(2.0f*M_PI);
+#endif
+#if 1
   if(g == 0.0f) return 1.0f/(4.0f*M_PI);
   const float cos_theta = dotproduct(wi, wo);
-  return 1.0f/(4.0f*M_PI) * (1.0f-g)/powf(1.0f + g*g - 2.0f*g*cos_theta, 3.0f/2.0f);
+  return 1.0f/(4.0f*M_PI) * (1.0f-g*g)/powf(1.0f + g*g - 2.0f*g*cos_theta, 3.0f/2.0f);
+#endif
 }
-
-
 
 #endif

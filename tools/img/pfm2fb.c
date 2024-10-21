@@ -2,8 +2,8 @@
 
 int main(int argc, char *argv[])
 {
-  rgb2spec_t *r2s = rgb2spec_init("data/xyz2spec.coeff");
-  // rgb2spec_t *r2s = rgb2spec_init("data/ergb2spec.coeff");
+  // rgb2spec_t *r2s = rgb2spec_init("data/xyz2spec.coeff");
+  rgb2spec_t *r2s = rgb2spec_init("data/ergb2spec.coeff");
   if(!r2s) exit(1);
 
   // load pfm file

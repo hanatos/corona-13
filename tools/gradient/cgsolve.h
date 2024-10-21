@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 
 // http://www3.cplusplus.com/forum/general/222617/
 #define real float

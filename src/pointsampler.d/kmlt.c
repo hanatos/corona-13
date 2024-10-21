@@ -40,8 +40,9 @@ typedef struct pointsampler_contribution_t
   float i,j;
   int path_length;
   int camid;
-  float lambda;
-  float throughput, throughput_mapped;
+  mf_t lambda;
+  mf_t throughput;
+  float throughput_mapped;
 }
 pointsampler_contribution_t;
 
@@ -49,7 +50,8 @@ typedef struct pointsampler_thr_t
 {
   int mutated_samples;
   float temperature, mean_temperature;
-  float curr_throughput, tent_throughput, accum_throughput;
+  mf_t curr_throughput, tent_throughput;
+  float accum_throughput;
   float curr_throughput_mapped, tent_throughput_mapped;
   int64_t num_samples, num_rejects, num_accepts, num_mutations;
   double b, b_mapped;
@@ -94,21 +96,21 @@ void pointsampler_print_info(FILE *f)
 
 pointsampler_t *pointsampler_init(uint64_t frame)
 {
-  pointsampler_t *s = (pointsampler_t *)malloc(sizeof(pointsampler_t));
-  s->t = (pointsampler_thr_t *)malloc(sizeof(pointsampler_thr_t)*rt.num_threads);
+  pointsampler_t *s = (pointsampler_t *)common_alloc(256, sizeof(pointsampler_t));
+  s->t = (pointsampler_thr_t *)common_alloc(256, sizeof(pointsampler_thr_t)*rt.num_threads);
   for(int k=0;k<rt.num_threads;k++)
   {
-    s->t[k].rand_buf = (float *)malloc(2*sizeof(float)*POINTSAMPLER_NUM_DIMS);
+    s->t[k].rand_buf = (float *)common_alloc(256, 2*sizeof(float)*POINTSAMPLER_NUM_DIMS);
     memset(s->t[k].rand_buf, 0, 2*sizeof(float)*POINTSAMPLER_NUM_DIMS);
     s->t[k].tent_rand = s->t[k].rand_buf;
     s->t[k].curr_rand = s->t[k].rand_buf + POINTSAMPLER_NUM_DIMS;
     s->t[k].curr_rand[s_dim_lambda] = -0.666f;
-    s->t[k].tent_throughput = 0.0f;
+    s->t[k].tent_throughput = mf_set1(0.0f);
     s->t[k].accum_throughput = 0.0f;
     s->t[k].tent_throughput_mapped = 0.0f;
     s->t[k].temperature = 0.0f;
     s->t[k].mean_temperature = 0.0f;
-    s->t[k].curr_throughput = FLT_MIN;
+    s->t[k].curr_throughput = mf_set1(FLT_MIN);
     s->t[k].curr_throughput_mapped = FLT_MIN;
     s->t[k].curr_contrib = s->t[k].contrib_buf;
     s->t[k].tent_contrib = s->t[k].contrib_buf + 2*PATHSPACE_MAX_VERTS;
@@ -116,8 +118,8 @@ pointsampler_t *pointsampler_init(uint64_t frame)
     s->t[k].tent_num_contribs = 0;
     s->t[k].large_step = 0;
     s->t[k].num_samples = 0;
-    s->t[k].b = 0.0f;
-    s->t[k].b_mapped = 0.0f;
+    s->t[k].b = 0.0;
+    s->t[k].b_mapped = 0.0;
     s->t[k].num_rejects = 0;
     s->t[k].p_large_step = POINTSAMPLER_P_LARGE_STEP;
   }
@@ -146,9 +148,10 @@ void pointsampler_finalize(pointsampler_t *s)
       path.lambda = t->curr_contrib[k].lambda;
       path.length = t->curr_contrib[k].path_length;
       path.sensor.camid = t->curr_contrib[k].camid;
-      view_splat(&path, t->accum_throughput * t->curr_contrib[k].throughput/t->curr_throughput);
+      // view_splat(&path, mf_mul(mf_set1(t->accum_throughput), mf_div(t->curr_contrib[k].throughput, t->curr_throughput)));
+      view_splat(&path, mf_mul(mf_set1(t->accum_throughput/mf_hsum(t->curr_throughput)), t->curr_contrib[k].throughput));
     }
-    t->accum_throughput = 0.0;
+    t->accum_throughput = 0.0f;
     b += t->b / rt.num_threads;
   }
   view_set_exposure_gain(b);
@@ -165,9 +168,9 @@ void pointsampler_clear()
     rt.pointsampler->t[k].mean_temperature = 0.f;
     rt.pointsampler->t[k].b = 0.0f;
     rt.pointsampler->t[k].b_mapped = 0.0f;
-    rt.pointsampler->t[k].tent_throughput = 0.0f;
+    rt.pointsampler->t[k].tent_throughput = mf_set1(0.0f);
     rt.pointsampler->t[k].accum_throughput = 0.0f;
-    rt.pointsampler->t[k].curr_throughput = FLT_MIN;
+    rt.pointsampler->t[k].curr_throughput = mf_set1(FLT_MIN);
     rt.pointsampler->t[k].tent_throughput_mapped = 0.0f;
     rt.pointsampler->t[k].curr_throughput_mapped = FLT_MIN;
     rt.pointsampler->t[k].num_rejects = 0;
@@ -201,7 +204,7 @@ float pointsampler(path_t *p, const int i)
   return t->tent_rand[end + i];
 }
 
-static inline float tonemap(float x)
+static inline float tonemap(mf_t x)
 {
 #if 0
   // log space, expect mean image brightness somewhere around [0,1] with is taken into account
@@ -225,15 +228,15 @@ static inline float tonemap(float x)
 #endif
 
   // off:
-  return x;
+  return mf_hsum(x);
 }
 
-void pointsampler_splat(path_t *path, float value)
+void pointsampler_splat(path_t *path, mf_t value)
 { // wrapper for view_splat, postponing tentative sample.
-  if(!(value > 0.0 && value < FLT_MAX)) return;
+  if(!mf_any(mf_gt(value, mf_set1(0.0f))) || !mf_all(mf_lt(value, mf_set1(FLT_MAX)))) return;
   const int tid = common_get_threadid();
   pointsampler_thr_t *t = rt.pointsampler->t + tid;
-  t->tent_throughput += value;
+  t->tent_throughput = mf_add(t->tent_throughput, value);
   t->tent_throughput_mapped += tonemap(value);
   const int n = t->tent_num_contribs;
   t->tent_contrib[n].i = path->sensor.pixel_i;
@@ -260,7 +263,7 @@ int pointsampler_accept(path_t *curr, path_t *tent)
   if((t->num_samples < POINTSAMPLER_INIT_SAMPLES) && t->large_step)
   {
     t->num_samples++;
-    t->b = t->b*((t->num_samples-1.0)/(double)t->num_samples) + t->tent_throughput/(double)t->num_samples;
+    t->b = t->b*((t->num_samples-1.0)/(double)t->num_samples) + mf_hsum(t->tent_throughput)/(double)t->num_samples;
     t->b_mapped = t->b_mapped*((t->num_samples-1.0)/(double)t->num_samples) + t->tent_throughput_mapped/(double)t->num_samples;
   }
   // divide out the wrong pdf (mapped throughput / mapped mean image brightness) and multiply with the correct but sub-optimal one
@@ -269,11 +272,11 @@ int pointsampler_accept(path_t *curr, path_t *tent)
 
   t->accum_throughput += w_curr; // remember to accumulate once we jump out of it
 
-  if((points_rand(rt.points, tid) < a) || (t->num_rejects > 5000000 && a > 0.0))
+  if((points_rand(rt.points, tid) < a) || (t->num_rejects > 40000 && a > 0.0))
   { // accept
     t->temperature = MAX(0, t->temperature-1);
     // have to accumulate now discarded state:
-    if(t->curr_throughput > FLT_MIN)
+    if(mf_any(mf_gt(t->curr_throughput, mf_set1(FLT_MIN))))
     {
       for(int k=0;k<t->curr_num_contribs;k++)
       {
@@ -282,7 +285,7 @@ int pointsampler_accept(path_t *curr, path_t *tent)
         path.lambda = t->curr_contrib[k].lambda;
         path.length = t->curr_contrib[k].path_length;
         path.sensor.camid = t->curr_contrib[k].camid;
-        view_splat(&path, t->accum_throughput * t->curr_contrib[k].throughput/t->curr_throughput);
+        view_splat(&path, mf_mul(mf_set1(t->accum_throughput/mf_hsum(t->curr_throughput)), t->curr_contrib[k].throughput));
       }
     }
     t->accum_throughput = w_tent; // one sample currently under consideration
@@ -309,7 +312,8 @@ int pointsampler_accept(path_t *curr, path_t *tent)
       path.sensor.pixel_i = t->tent_contrib[k].i;
       path.sensor.pixel_j = t->tent_contrib[k].j;
       path.lambda = t->tent_contrib[k].lambda;
-      view_splat(&path, w_tent * t->tent_contrib[k].throughput/t->tent_throughput);
+      // view_splat(&path, w_tent * t->tent_contrib[k].throughput/t->tent_throughput);
+      view_splat(&path, mf_mul(mf_set1(w_tent/mf_hsum(t->tent_throughput)), t->tent_contrib[k].throughput));
     }
     return 0;
   }
@@ -325,7 +329,7 @@ void pointsampler_mutate_with_pixel(path_t *curr_path, path_t *tent_path, float 
   pointsampler_t *s = rt.pointsampler;
   const int tid = common_get_threadid();
   pointsampler_thr_t *t = s->t + tid;
-  t->large_step = (t->curr_throughput <= FLT_MIN) || ((points_rand(rt.points, tid) < t->p_large_step) ? 1 : 0);
+  t->large_step = mf_all(mf_lte(t->curr_throughput, mf_set1(FLT_MIN))) || ((points_rand(rt.points, tid) < t->p_large_step) ? 1 : 0);
 
   if(t->large_step)
   {
@@ -346,7 +350,7 @@ void pointsampler_mutate_with_pixel(path_t *curr_path, path_t *tent_path, float 
     }
 #else
     assert(t->num_samples > 0);
-    assert(t->curr_throughput > FLT_MIN);
+    // assert(t->curr_throughput > FLT_MIN);
     assert(t->curr_rand[s_dim_lambda] > -0.666f);
     t->tent_rand[s_dim_time]   = sample_mutate_rand(t->curr_rand[s_dim_time],    points_rand(rt.points, tid), 0.1f);
     t->tent_rand[s_dim_lambda] = sample_mutate_rand(t->curr_rand[s_dim_lambda],  points_rand(rt.points, tid), 0.1f); // ~30nm
@@ -392,7 +396,7 @@ void pointsampler_mutate_with_pixel(path_t *curr_path, path_t *tent_path, float 
     }
 #endif
   }
-  t->tent_throughput = 0.0f;
+  t->tent_throughput = mf_set1(0.0f);
   t->tent_throughput_mapped = 0.0f;
   t->tent_num_contribs = 0;
   path_init(tent_path, tent_path->index, tent_path->sensor.camid);

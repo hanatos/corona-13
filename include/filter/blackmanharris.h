@@ -49,8 +49,10 @@ static inline void filter_blackmanharris_splat(
   const int wd = fb->header->width, ht = fb->header->height;
   const int x0 = (int)(i - 1.5f);
   const int y0 = (int)(j - 1.5f);
-  const int u0 = x0 >= 0 ? 0 : - x0;
-  const int v0 = y0 >= 0 ? 0 : - y0;
+  // const int u0 = x0 >= 0 ? 0 : - x0;
+  // const int v0 = y0 >= 0 ? 0 : - y0;
+  const int u0 = -x0 < 0 ? 0 : - x0; // this unusual check avoids the -2147483648 = -itself case
+  const int v0 = -y0 < 0 ? 0 : - y0;
   const int u4 = x0 + 4 > wd ? wd - x0 : 4;
   const int v4 = y0 + 4 > ht ? ht - y0 : 4;
 

@@ -407,7 +407,82 @@ float prims_get_ray(const hit_t *hit1, const hit_t *hit2, ray_t *ray)
     if(primid_invalid(hit1->prim))
       ray->pos[k] = hit1->x[k];
     else
+    {
+#if 1
       ray->pos[k] = hit1->x[k] + eps * ray->dir[k];
+#else // patented fake surface offsets!
+      const primid_t pi = hit1->prim;
+      const prims_t *p = rt.prims;
+      const float time = ray->time;
+      const int vcnt = geo_get_vertex_count(p, pi);
+      ray->pos[k] = hit1->x[k] + eps * ray->dir[k];
+
+      if(vcnt == 3 || vcnt == 4)
+      { // only support tris and quads:
+        float4_t A, B, C;
+        float nA[3], nB[3], nC[3];
+        geo_get_vertex_time(p, pi, 0, time, &A);
+        geo_get_normal_time(p, pi, 0, time, nA);
+
+        float u, v;
+
+        if(vcnt == 3)
+        {
+          geo_get_vertex_time(p, pi, 1, time, &B);
+          geo_get_normal_time(p, pi, 1, time, nB);
+          geo_get_vertex_time(p, pi, 2, time, &C);
+          geo_get_normal_time(p, pi, 2, time, nC);
+          u = hit1->u;
+          v = hit1->v;
+        }
+        else if(vcnt == 4)
+        {
+          if(hit1->v >= hit1->u)
+          {
+            geo_get_vertex_time(p, pi, 1, time, &B);
+            geo_get_normal_time(p, pi, 1, time, nB);
+            geo_get_vertex_time(p, pi, 2, time, &C);
+            geo_get_normal_time(p, pi, 2, time, nC);
+            u = hit1->u;
+            v = hit1->v - hit1->u;
+          }
+          else
+          {
+            geo_get_vertex_time(p, pi, 2, time, &B);
+            geo_get_normal_time(p, pi, 2, time, nB);
+            geo_get_vertex_time(p, pi, 3, time, &C);
+            geo_get_normal_time(p, pi, 3, time, nC);
+            u = hit1->u - hit1->v;
+            v = hit1->v;
+          }
+        }
+        normalise(nA);
+        normalise(nB);
+        normalise(nC);
+
+        float tmpa[3], tmpb[3], tmpc[3];
+        for(int k=0;k<3;k++)
+        {
+          tmpa[k] = hit1->x[k] - A.f[k];
+          tmpb[k] = hit1->x[k] - B.f[k];
+          tmpc[k] = hit1->x[k] - C.f[k];
+        }
+        const float dota = MIN(0.0f, dotproduct(tmpa, nA));
+        const float dotb = MIN(0.0f, dotproduct(tmpb, nB));
+        const float dotc = MIN(0.0f, dotproduct(tmpc, nC));
+        for(int k=0;k<3;k++)
+        {
+          tmpa[k] -= dota * nA[k];
+          tmpb[k] -= dotb * nB[k];
+          tmpc[k] -= dotc * nC[k];
+        }
+        for(int k=0;k<3;k++)
+          ray->pos[k] = (tmpa[k] + A.f[k])*(1.0f-u-v) +
+                        (tmpb[k] + B.f[k])*v +
+                        (tmpc[k] + C.f[k])*u;
+      }
+#endif
+    }
     if(primid_invalid(hit2->prim))
       dir[k] = hit2->x[k] - ray->pos[k];
     else
@@ -485,6 +560,64 @@ error:
     get_onb(hit->gn, mf->dpdu, mf->dpdv);
   }
 }
+
+#if 0
+void prims_push_term(const prims_t *p, primid_t pi, const float time, hit_t *hit)
+{
+  const int vcnt = geo_get_vertex_count(p, pi);
+  if(vcnt == s_prim_tri || vcnt == s_prim_quad)
+  {
+    // tris and quads
+    float4_t v0, v1, v2, v3;
+    geo_get_vertex_time(p, pi, 0, time, &v0);
+    geo_get_vertex_time(p, pi, 1, time, &v1);
+    geo_get_vertex_time(p, pi, 2, time, &v2);
+    if(vcnt == 3)
+    {
+      (v0.f, v1.f, v2.f, pi, ray, hit);
+    }
+    else if(vcnt == 4)
+    {
+      if(hit->v >= hit->u)
+      {
+        (v0.f, v1.f, v2.f, pi, ray, hit))
+        return;
+      }
+      geo_get_vertex_time(p, pi, 3, time, &v3);
+      (v0.f, v2.f, v3.f, pi, ray, hit))
+    }
+  }
+
+  // XXX TODO: special case for smoother quads?
+
+  // now push out the vertex position to avoid self intersection!
+  float hitu[3], hitv[3], hitw[3];
+  for(int k=0;k<3;k++)
+  { // get distance vectors from triangle vertices
+    hitu[k] = hit->x[k] - v2.f[k];
+    hitv[k] = hit->x[k] - v1.f[k];
+    hitw[k] = hit->x[k] - v0.f[k];
+  }
+  // project these onto the shading normals n
+  const float dotu = fminf(0.0f, dot(hitu, n.v[2])),
+        dotv = fminf(0.0f, dot(hitv, n.v[1])),
+        dotw = fminf(0.0f, dot(hitw, n.v[0]));
+  for(int k=0;k<3;k++)
+  { // and push the distance vectors out onto the planes
+    // defined by the shading normals
+    hitu[k] -= dotu*n.v[2][k];
+    hitv[k] -= dotv*n.v[1][k];
+    hitw[k] -= dotw*n.v[0][k];
+  }
+  // the final hitpoint is the barycentric mean of these three
+  for(int k=0;k<3;k++) hit.hit[k] =
+    (1-hit.u-hit.v)*(tri.v[0][k] + hitw[k])
+      + hit.v
+      *(tri.v[1][k] + hitv[k])
+      + hit.u
+      *(tri.v[2][k] + hitu[k]);
+}
+#endif
 
 /* triangle uvs: w*v0 + v*v1 + u*v2    */
 /* intersect a quad:

@@ -252,19 +252,19 @@ md_t;
 
 #define md_loadu(A)  (md_t){.v0=_mm256_loadu_pd(A),   .v1=_mm256_loadu_pd((A)+8)}
 
-#define md(A,B) ((B)<4?  _mm256_extractf128_ps((A).v0,(B)>>2)[(B)&3] : _mm256_extractf128_ps((A).v1,((B)&4)>>2)[(B)&3])
+#define md(A,B) ((B)<4?  _mm256_extractf128_pd((A).v0,(B)>>2)[(B)&3] : _mm256_extractf128_ps((A).v1,((B)&4)>>2)[(B)&3])
 
 static inline double
 md_hsum(md_t a)
 {
   __m128d vlow  = _mm256_castpd256_pd128(a.v0);
-  __m128d vhigh = _mm256_extractf128_pd(v0, 1); // high 128
+  __m128d vhigh = _mm256_extractf128_pd(a.v0, 1); // high 128
   vlow  = _mm_add_pd(vlow, vhigh);     // reduce down to 128
   __m128d high64 = _mm_unpackhi_pd(vlow, vlow);
   double res = _mm_cvtsd_f64(_mm_add_sd(vlow, high64));  // reduce to scalar
 
   vlow  = _mm256_castpd256_pd128(a.v1);
-  vhigh = _mm256_extractf128_pd(v1, 1); // high 128
+  vhigh = _mm256_extractf128_pd(a.v1, 1); // high 128
   vlow  = _mm_add_pd(vlow, vhigh);     // reduce down to 128
   high64 = _mm_unpackhi_pd(vlow, vlow);
   return res + _mm_cvtsd_f64(_mm_add_sd(vlow, high64));  // reduce to scalar

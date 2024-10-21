@@ -729,11 +729,11 @@ static uint64_t sort_primids_par(
     for(int k=3;k<6;k++) aabbro[k] = MAX(aabbro[k], aabbr[t][k]);
   }
 
-  uint64_t num_left = 0, num_right = 0;
+  uint64_t num_left = 0;//, num_right = 0;
   for(int t=0;t<rt.num_threads;t++)
   {
     num_left  += right[t] - b_l[t];
-    num_right += b_e[t] - right[t];
+    // num_right += b_e[t] - right[t];
     b_r[t] = right[t];
   }
 

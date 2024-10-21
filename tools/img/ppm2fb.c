@@ -3,6 +3,16 @@
 #include <stdlib.h>
 #include <string.h>
 
+float srgb_to_linear(float x)
+{
+  if(x < 0.04045f) return x / 12.92;
+  else
+  {
+    const float a = 0.055;
+    return powf((x+a)/(1.f+a), 2.4f);
+  }
+}
+
 int main(int argc, char *argv[])
 {
   if(argc < 3)
@@ -25,8 +35,9 @@ int main(int argc, char *argv[])
   // i totally hate how ppm are always flipped, no matter what you do:
   for(uint64_t j=0;j<height;j++)
     for(uint64_t i=0;i<3*width;i++)
-      data[3*width*(height-1-j)+i] = data8[3*width*j+i]/255.0f;
-      // data[3*width*(height-1-j)+i] = powf(data8[3*width*j+i]/255.0f, 2.8f);
+      //data[3*width*(height-1-j)+i] = data8[3*width*j+i]/255.0f;
+      data[3*width*(height-1-j)+i] = srgb_to_linear(data8[3*width*j+i]/255.0f);
+      // data[3*width*(height-1-j)+i] = powf(data8[3*width*j+i]/255.0f, 1.0f/2.8f);
   free(data8);
 
   int err = fb_tex_from_float(

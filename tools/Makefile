@@ -12,9 +12,12 @@ corona-netrender: networkplayer.c ../src/display.d/xorg.c Makefile ../include/di
 turntablecam: turntablecam.c Makefile ../include/camera.h ../include/quaternion.h
 	$(CC) $(CFLAGS) $(OPTFLAGS) turntablecam.c -o turntablecam -lm
 
+lerpcam: lerpcam.c Makefile ../include/camera.h ../include/quaternion.h
+	$(CC) $(CFLAGS) $(OPTFLAGS) $< -o $@ -lm
+
 # FIXME: only works with random numbers, not halton, only works with default PATHSPACE_MAX_VERTS etc..
 battle-test: battle-test.c Makefile ../include/pathspace.h
-	$(CC) $(CFLAGS) -I../ext/pthread-pool $(OPTFLAGS) battle-test.c ../src/pathspace.c ../src/pointsampler.d/rand.c ../src/points.d/sfmt.c ../src/shader.c ../src/view.c -rdynamic -lm -lc -ldl -o battle-test
+	$(CC) $(CFLAGS) -I../ext/pthread-pool $(OPTFLAGS) battle-test.c ../src/pathspace.c ../src/lights.d/list.c ../src/camera.d/thinlens.c ../src/prims.c ../src/display.d/null.c ../src/render.d/gi.c ../src/sampler.d/pt.c ../src/pointsampler.d/rand.c ../src/points.d/sfmt.c ../src/shader.c ../src/view.c ../src/corona_common.c  -rdynamic -lm -lc -ldl -o battle-test -L../ext/pthread-pool/ -lpthreadpool
 
 denoise: denoise.c denoise_wavelets.h Makefile
 	$(CC) -std=c99 -g -I../include -lm -lc -Wall denoise.c -o denoise

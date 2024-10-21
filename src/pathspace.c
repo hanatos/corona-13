@@ -24,6 +24,7 @@ void path_init(path_t *path, uint64_t index, int camid)
   path->sensor.camid = camid;
   memset(path->v, 0, 2*sizeof(vertex_t));
   memset(path->e, 0, 2*sizeof(edge_t));
+  path->debug_volume_bridge = 0;
 }
 
 void path_copy(path_t *path, const path_t *other)
@@ -38,6 +39,7 @@ void path_copy(path_t *path, const path_t *other)
   path->sensor = other->sensor;
   for(int v=0;v<other->length;v++) path->v[v] = other->v[v];
   for(int e=0;e<other->length;e++) path->e[e] = other->e[e];
+  path->debug_volume_bridge = other->debug_volume_bridge;
 }
 
 float path_lambert(const path_t *p, int v, const float *omega)
@@ -64,6 +66,13 @@ float path_G(const path_t *p, int e)
     path_lambert(p, e-1, p->e[e].omega)*
     path_lambert(p, e, p->e[e].omega)/
     (p->e[e].dist * p->e[e].dist);
+}
+
+static inline mf_t
+path_Gm(const path_t *p, int e)
+{
+  const float G = path_G(p, e); // avoid calling multiple times
+  return mf_set1(G);
 }
 
 // return the vertex number of the vertex with the interior that describes the
@@ -250,7 +259,7 @@ int path_extend(path_t *path)
   }
 
   // transform probability to on-surface probability at vertex v
-  path->v[v].pdf = mf_mul(path->v[v].pdf, mf_set1(path_G(path, v)));
+  path->v[v].pdf = mf_mul(path->v[v].pdf, path_Gm(path, v));
   path->length++; // now a valid vertex
 
   path_update_throughput(path, v);
@@ -292,6 +301,10 @@ void path_pop(path_t *path)
   path->v[v-1].mode &= s_emit;
   path->length--;
   path->throughput = path->v[v-1].total_throughput; // reset throughput.
+
+  // for mvnee: pop once more! vertex tech determines this:
+  if(v && path->v[v-1].tech == s_tech_mvnee) path_pop(path);
+  if(v && path->v[v-1].tech == s_tech_equiangular) path_pop(path);
 }
 
 // return 1 if p->v[v] is visible from p->v[v-1].
@@ -383,7 +396,7 @@ mf_t path_pdf_extend(const path_t *path, int v)
     pdf = shader_pdf(path, v-1);
   // account for volume probabilities:
   mf_t vol_pdf = shader_vol_pdf(path, v);
-  return mf_mul(mf_mul(vol_pdf, pdf), mf_set1(path_G(path, v)));
+  return mf_mul(mf_mul(vol_pdf, pdf), path_Gm(path, v));
 }
 
 // return on-surface pdf of vertex v if it had been sampled the other way around via
@@ -423,7 +436,7 @@ mf_t path_pdf_extend_adjoint(const path_t *path, int v)
   // account for volume probabilities:
   pdf = mf_mul(pdf, shader_vol_pdf_adjoint(path, v+1));
   // convert to vertex area of vertex after shooting the ray
-  return mf_mul(pdf, mf_set1(path_G(path, v+1)));
+  return mf_mul(pdf, path_Gm(path, v+1));
 }
 
 void path_reverse(path_t *path, const path_t *input)
@@ -554,7 +567,7 @@ mf_t path_connect(path_t *path1, const path_t *path2)
   }
 
   // evaluate throughput
-  const mf_t connect = mf_mul(mf_mul(mf_mul(vol, mf_set1(path_G(path1, v))), bsdf1), bsdf2);
+  const mf_t connect = mf_mul(mf_mul(mf_mul(vol, path_Gm(path1, v)), bsdf1), bsdf2);
   const mf_t throughput = mf_mul(mf_mul(path1->v[v-1].throughput, connect), path2->v[path2->length-1].throughput);
   path1->length += path2->length; // mark edges and vertices as inited and in this path
   path1->throughput = throughput;
@@ -751,10 +764,6 @@ int path_propagate(path_t *path, int v, const path_propagation_mode_t mode)
   float total_dist = hit->dist;
   path->e[v].dist = total_dist;
 
-  // light tracer exited to envmap:
-  if(hit->dist == FLT_MAX && (path->v[0].mode & s_emit) && !(path->v[v].mode & s_sensor))
-    return 3;
-
   // reconstruction failed to find a vertex up until clip distance, but geometry was requested
   if(mode == s_propagate_reconstruct && hit->dist == clipdist && clipdist < FLT_MAX && path->e[v].vol.shader == -1)
     return 4;
@@ -846,6 +855,9 @@ int path_propagate(path_t *path, int v, const path_propagation_mode_t mode)
 
   if(path->e[v].dist >= FLT_MAX)
   { // envmap hit. this doesn't get shader_prepare() calls, in particular it doesn't have an inited manifold system
+    // light tracer exited to envmap:
+    if((path->v[0].mode & s_emit) && !(path->v[v].mode & s_sensor)) return 3;
+
     path->v[v].flags |= s_environment;
     // init envmap emission
     shader_prepare(path, v);

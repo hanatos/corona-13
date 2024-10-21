@@ -7,6 +7,7 @@
 #include <stdexcept>
 #include <iostream>
 #include <algorithm>
+#include <cstdint>
 
 #include "details/cie1931.h"
 #include "details/lu.h"
@@ -290,7 +291,7 @@ int main(int argc, char **argv) {
     float *out = new float[bufsize];
 
 #if defined(_OPENMP)
-#pragma omp parallel for collapse(2) default(none) schedule(dynamic) shared(stdout,scale,out)
+#pragma omp parallel for collapse(2) default(none) schedule(dynamic) shared(stdout,scale,out,res)
 #endif
     for (int l = 0; l < 3; ++l) {
 #if !defined(_OPENMP) && defined(RGB2SPEC_USE_TBB)
